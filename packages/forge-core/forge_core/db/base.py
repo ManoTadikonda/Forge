@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -23,7 +23,7 @@ NAMING_CONVENTION = {
 class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
-    type_annotation_map = {dict[str, Any]: JSONB}
+    type_annotation_map: ClassVar[dict[Any, Any]] = {dict[str, Any]: JSONB}
 
 
 def utcnow() -> datetime:
@@ -51,4 +51,4 @@ class TimestampMixin:
     )
 
 
-__all__ = ["Base", "NAMING_CONVENTION", "TimestampMixin", "utcnow", "uuid_pk"]
+__all__ = ["NAMING_CONVENTION", "Base", "TimestampMixin", "utcnow", "uuid_pk"]

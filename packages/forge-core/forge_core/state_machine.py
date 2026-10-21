@@ -8,7 +8,6 @@ cannot drift apart.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Generic, TypeVar
 
 from forge_core.enums import (
     DeploymentState,
@@ -17,10 +16,8 @@ from forge_core.enums import (
 )
 from forge_core.errors import IllegalTransitionError
 
-S = TypeVar("S")
 
-
-class StateMachine(Generic[S]):
+class StateMachine[S]:
     """A declarative, immutable transition table."""
 
     def __init__(self, name: str, transitions: Mapping[S, frozenset[S]]) -> None:

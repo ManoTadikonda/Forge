@@ -57,7 +57,7 @@ class Stats:
             values = sorted(self._latencies)
         if not values:
             return 0.0
-        rank = max(1, min(len(values), int(round(pct / 100.0 * len(values) + 0.5))))
+        rank = max(1, min(len(values), round(pct / 100.0 * len(values) + 0.5)))
         return values[rank - 1]
 
     def snapshot(self) -> dict[str, Any]:

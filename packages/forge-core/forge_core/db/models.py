@@ -590,6 +590,25 @@ class Job(Base, TimestampMixin):
     )
 
 
+class DeploymentLock(Base):
+    """Mutual exclusion for deployments targeting one service+environment.
+
+    Kept in PostgreSQL alongside the state it protects: a lock that can disagree with
+    the state it guards is not a lock. ``token`` increments on every acquisition so a
+    previous holder whose lease expired is fenced out of all writes.
+    """
+
+    __tablename__ = "deployment_locks"
+
+    resource: Mapped[str] = mapped_column(String(200), primary_key=True)
+    owner: Mapped[str] = mapped_column(String(128), nullable=False)
+    token: Mapped[int] = mapped_column(BigInteger, nullable=False, default=1)
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
+
 class WebhookDelivery(Base):
     """Received webhook deliveries, for deduplication and audit."""
 
@@ -657,8 +676,23 @@ def normalize_email(email: str) -> str:
 
 
 __all__ = [
+    "Artifact",
+    "AuditEvent",
+    "Deployment",
+    "DeploymentEvent",
+    "DeploymentLock",
+    "Environment",
+    "HealthSampleRow",
+    "Incident",
+    "Job",
+    "LogChunk",
+    "PipelineRun",
+    "PipelineStage",
+    "Release",
+    "Repository",
+    "Service",
+    "Session",
+    "User",
+    "WebhookDelivery",
     "normalize_email",
-    "Artifact", "AuditEvent", "Deployment", "DeploymentEvent", "Environment",
-    "HealthSampleRow", "Incident", "Job", "LogChunk", "PipelineRun", "PipelineStage",
-    "Release", "Repository", "Service", "Session", "User", "WebhookDelivery",
 ]

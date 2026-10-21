@@ -12,11 +12,10 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy.engine import Connection
-
 from forge_core.config import get_settings
 from forge_core.db.base import Base
 from forge_core.db.session import create_engine, embedded_database_url
+from sqlalchemy.engine import Connection
 
 # Importing the models module registers every table on Base.metadata.
 import forge_core.db.models  # noqa: F401  isort:skip

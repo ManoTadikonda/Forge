@@ -178,10 +178,9 @@ def parse_manifest(raw: str | bytes, *, filename: str = "forge.toml") -> Pipelin
     data: Any
     text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
     try:
-        if filename.endswith(".json"):
-            data = json.loads(text)
-        else:
-            data = tomllib.loads(text)
+        data = (
+            json.loads(text) if filename.endswith(".json") else tomllib.loads(text)
+        )
     except (tomllib.TOMLDecodeError, json.JSONDecodeError) as exc:
         raise ValidationError(
             f"{filename} is not valid {'JSON' if filename.endswith('.json') else 'TOML'}: "

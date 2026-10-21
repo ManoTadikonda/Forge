@@ -107,26 +107,27 @@ async def claim_one(
     claim only, never the handler's work.
     """
     now = _now()
-    kind_filter = ""
+    # `kinds` is always bound as a parameter, never interpolated: when no filter is
+    # requested it is the full set of kinds, which matches every row. This keeps the
+    # statement a single constant string with no SQL built from variables.
+    selected = kinds or tuple(JobKind)
     params: dict[str, Any] = {
         "now": now,
         "worker_id": worker_id,
         "lease": now + timedelta(seconds=lease_seconds),
+        "kinds": [k.value for k in selected],
     }
-    if kinds:
-        kind_filter = "AND kind = ANY(:kinds)"
-        params["kinds"] = [k.value for k in kinds]
 
     # The CTE selects and locks a single candidate row, then the UPDATE promotes it.
     sql = text(
-        f"""
+        """
         WITH candidate AS (
             SELECT id
             FROM jobs
             WHERE state = 'PENDING'
               AND available_at <= :now
               AND cancel_requested = false
-              {kind_filter}
+              AND kind = ANY(:kinds)
             ORDER BY priority ASC, available_at ASC
             FOR UPDATE SKIP LOCKED
             LIMIT 1
