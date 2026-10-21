@@ -1,0 +1,73 @@
+[project]
+name = "forge-monorepo"
+version = "0.1.0"
+description = "Forge - a miniature internal developer platform"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "forge-core",
+    "forge-api",
+    "forge-worker",
+    "forge-router",
+    "sample-service",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3,<9",
+    "pytest-asyncio>=0.24.0,<0.25",
+    "pytest-timeout>=2.3.1,<3",
+    "httpx>=0.27.2,<0.29",
+    "ruff>=0.7.4,<0.15",
+    "mypy>=1.13.0,<2",
+    "types-passlib>=1.7.7.20240819",
+    "pgserver>=0.1.4,<0.2",
+]
+
+[tool.uv.workspace]
+members = ["packages/*", "apps/api", "apps/worker", "apps/router", "apps/sample-service"]
+
+[tool.uv.sources]
+forge-core = { workspace = true }
+forge-api = { workspace = true }
+forge-worker = { workspace = true }
+forge-router = { workspace = true }
+sample-service = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", ".tooling", "node_modules", "**/alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S", "ASYNC", "C4", "SIM", "RUF"]
+ignore = [
+    "S101",  # assert: used intentionally in tests and internal invariants
+    "B008",  # FastAPI Depends() in defaults is the documented idiom
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S311"]
+"**/tests/**" = ["S105", "S106", "S311"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+exclude = ["\\.venv", "\\.tooling", "alembic/versions", "node_modules"]
+
+[[tool.mypy.overrides]]
+module = ["pgserver.*", "prometheus_client.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+timeout = 300
+markers = [
+    "integration: requires a live PostgreSQL instance",
+    "reliability: crash, duplicate-delivery and recovery scenarios",
+    "slow: long-running end-to-end orchestration tests",
+]
+filterwarnings = ["error::DeprecationWarning:forge_core.*"]

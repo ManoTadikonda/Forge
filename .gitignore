@@ -1,0 +1,52 @@
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- node ---
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+*.tsbuildinfo
+playwright-report/
+test-results/
+.playwright/
+
+# --- forge runtime state ---
+# Local datastores, workspaces, build artifacts and logs. All reproducible.
+.forge/
+.tooling/
+
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/testdata/*.key
+secrets/
+credentials.json
+
+# --- terraform ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# --- os / editor ---
+.DS_Store
+*.swp
+.idea/
+.vscode/
