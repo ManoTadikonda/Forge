@@ -15,10 +15,10 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from forge_core.errors import FencedError, LockAcquisitionError
-from sqlalchemy import text
+from sqlalchemy import CursorResult, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -132,7 +132,7 @@ async def release(session: AsyncSession, lock: DeploymentLock) -> bool:
         ),
         {"resource": lock.resource, "owner": lock.owner, "token": lock.token},
     )
-    return (result.rowcount or 0) > 0
+    return int(cast("CursorResult[Any]", result).rowcount or 0) > 0
 
 
 async def assert_held_in(sessionmaker: Any, lock: DeploymentLock) -> None:

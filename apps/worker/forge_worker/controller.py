@@ -25,6 +25,7 @@ from typing import Any
 import httpx
 from forge_core.canary import CanaryAction, CanaryPlan, decide
 from forge_core.config import Settings
+from forge_core.db.events import raise_incident, record_event
 from forge_core.db.models import (
     Artifact,
     Deployment,
@@ -43,7 +44,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from forge_worker import locking, traffic
-from forge_worker.events import raise_incident, record_event
 from forge_worker.registry.local import LocalContentAddressedRegistry
 
 logger = get_logger("forge.controller")

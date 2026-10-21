@@ -7,6 +7,7 @@ container runtime and no system PostgreSQL. It is a development convenience only
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -33,6 +34,9 @@ def embedded_database_url(data_dir: Path | None = None) -> str:
     the caller can report a precise remediation step instead of failing obscurely.
     """
     global _embedded_server
+    # pgserver logs its whole startup sequence at INFO; it is noise in Forge's own
+    # structured output, so it is quietened to warnings here.
+    logging.getLogger("pgserver").setLevel(logging.WARNING)
     try:
         import pgserver
     except ImportError as exc:  # pragma: no cover - environment dependent
@@ -47,7 +51,7 @@ def embedded_database_url(data_dir: Path | None = None) -> str:
     ).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     if _embedded_server is None:
-        _embedded_server = pgserver.get_server(directory)
+        _embedded_server = pgserver.get_server(directory)  # type: ignore[attr-defined]
     # pgserver listens on a Unix socket; asyncpg takes the directory as `host`.
     socket_dir = quote(str(directory), safe="")
     return f"postgresql+asyncpg://postgres@/postgres?host={socket_dir}"

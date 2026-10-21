@@ -5,10 +5,11 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from forge_core.db.models import LogChunk
-from forge_core.redaction import redact_text
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from forge_core.db.models import LogChunk
+from forge_core.redaction import redact_text
 
 #: Output is split into chunks so no single row grows without bound and the API can
 #: paginate without loading an entire build's output.

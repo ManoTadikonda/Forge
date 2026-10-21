@@ -177,8 +177,6 @@ async def run_command(
 
 def _kill_process_group(process: asyncio.subprocess.Process) -> None:
     """Kill the whole process group so orphaned children cannot survive a timeout."""
-    if process.pid is None:
-        return
     for sig in (signal.SIGTERM, signal.SIGKILL):
         try:
             os.killpg(os.getpgid(process.pid), sig)

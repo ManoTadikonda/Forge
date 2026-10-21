@@ -89,6 +89,18 @@ class ReleaseRole(StrEnum):
     RETIRED = "RETIRED"
 
 
+#: Canonical stage order for a pipeline run. Stage rows are pre-created in this
+#: order so the dashboard can render the whole timeline before execution starts.
+STAGE_SEQUENCE: tuple[StageName, ...] = (
+    StageName.CLONE,
+    StageName.VALIDATE,
+    StageName.TEST,
+    StageName.BUILD,
+    StageName.SBOM,
+    StageName.SCAN,
+    StageName.PUBLISH,
+)
+
 #: Pipeline states from which no further transition is legal.
 TERMINAL_PIPELINE_STATES: frozenset[PipelineState] = frozenset(
     {PipelineState.SUCCEEDED, PipelineState.FAILED, PipelineState.CANCELED}

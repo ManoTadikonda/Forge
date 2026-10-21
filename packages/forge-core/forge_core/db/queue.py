@@ -21,9 +21,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
-from sqlalchemy import select, text, update
+from sqlalchemy import CursorResult, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -183,7 +183,7 @@ async def heartbeat(
         )
     )
     result = await session.execute(stmt)
-    return (result.rowcount or 0) > 0
+    return int(cast("CursorResult[Any]", result).rowcount or 0) > 0
 
 
 async def assert_fence(session: AsyncSession, job: ClaimedJob) -> None:
@@ -285,7 +285,7 @@ async def request_cancel(session: AsyncSession, dedupe_key: str) -> bool:
         )
         .values(cancel_requested=True, updated_at=now)
     )
-    return (result.rowcount or 0) > 0
+    return int(cast("CursorResult[Any]", result).rowcount or 0) > 0
 
 
 async def mark_canceled(session: AsyncSession, job: ClaimedJob) -> None:

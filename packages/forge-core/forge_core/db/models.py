@@ -307,7 +307,11 @@ class Artifact(Base, TimestampMixin):
     digest: Mapped[str] = mapped_column(String(80), nullable=False)
     image_name: Mapped[str] = mapped_column(String(255), nullable=False)
     version: Mapped[str] = mapped_column(String(64), nullable=False)
-    registry: Mapped[str] = mapped_column(String(64), nullable=False, default="local")
+    #: Mapped to the database column "registry". The Python attribute is named
+    #: differently because ``registry`` is reserved by SQLAlchemy's DeclarativeBase.
+    registry_name: Mapped[str] = mapped_column(
+        "registry", String(64), nullable=False, default="local"
+    )
     reference: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
 

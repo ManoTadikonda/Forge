@@ -20,6 +20,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from dulwich import porcelain
+from dulwich.objects import Commit
 from dulwich.repo import Repo
 from forge_core.errors import ValidationError
 from forge_core.logging import get_logger
@@ -38,9 +39,13 @@ class CheckoutResult:
 
 
 def _head_details(repo_path: Path, branch: str) -> tuple[str, str, str]:
+    """Read the HEAD commit's sha, message and author."""
     with Repo(str(repo_path)) as repo:
         head = repo.head()
+        # __getitem__ is typed as returning ShaFile; HEAD always resolves to a Commit.
         commit = repo[head]
+        if not isinstance(commit, Commit):  # pragma: no cover - defensive
+            raise ValidationError("Repository HEAD does not point at a commit.")
         message = commit.message.decode("utf-8", "replace").strip()
         author = commit.author.decode("utf-8", "replace")
         return head.decode("ascii"), message, author

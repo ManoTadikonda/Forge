@@ -18,8 +18,9 @@ from pathlib import Path
 from typing import Any
 
 from forge_core.config import Settings
+from forge_core.db.logs import append_log
 from forge_core.db.models import Artifact, PipelineRun, PipelineStage, Repository
-from forge_core.enums import PipelineState, StageName, StageStatus
+from forge_core.enums import STAGE_SEQUENCE, PipelineState, StageName, StageStatus
 from forge_core.errors import BuildError, ValidationError
 from forge_core.logging import get_logger
 from forge_core.manifest import PipelineManifest, load_manifest
@@ -31,20 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from forge_worker import checkout as checkout_module
 from forge_worker.builders.sandbox import SandboxLimits, resolve_executable, run_command
 from forge_worker.builders.sbom import generate_sbom, write_sbom
-from forge_worker.logs import append_log
 
 logger = get_logger("forge.pipeline")
-
-#: Stage order, used for the timeline shown in the dashboard.
-STAGE_SEQUENCE: tuple[StageName, ...] = (
-    StageName.CLONE,
-    StageName.VALIDATE,
-    StageName.TEST,
-    StageName.BUILD,
-    StageName.SBOM,
-    StageName.SCAN,
-    StageName.PUBLISH,
-)
 
 
 class PipelineCancelled(Exception):
@@ -472,7 +461,7 @@ class PipelineRunner:
                     digest=published.digest,
                     image_name=manifest.service.name,
                     version=version,
-                    registry=published.registry,
+                    registry_name=published.registry,
                     reference=published.reference,
                     size_bytes=build_result.size_bytes,
                     pipeline_run_id=run_id,
@@ -515,4 +504,4 @@ def _parse_iso(value: Any) -> datetime | None:
         return None
 
 
-__all__ = ["STAGE_SEQUENCE", "PipelineCancelled", "PipelineRunner"]
+__all__ = ["PipelineCancelled", "PipelineRunner"]

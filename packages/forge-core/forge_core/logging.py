@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import MutableMapping
 from contextvars import ContextVar
 from typing import Any
 
@@ -59,8 +60,8 @@ def clear_context() -> None:
 
 
 def _inject_context(
-    _logger: object, _name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
+    _logger: Any, _name: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
     for key, var in _CONTEXT_VARS.items():
         value = var.get()
         if value is not None and key not in event_dict:
@@ -69,9 +70,9 @@ def _inject_context(
 
 
 def _redact_processor(
-    _logger: object, _name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
-    result = redact_object(event_dict)
+    _logger: Any, _name: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    result = redact_object(dict(event_dict))
     assert isinstance(result, dict)
     return result
 

@@ -93,7 +93,7 @@ def _resolve(host: str, port: int) -> tuple[str, ...]:
         raise UnsafeUrlError(
             "Repository host could not be resolved.", details={"host": host}
         ) from exc
-    addresses = tuple(dict.fromkeys(info[4][0] for info in infos))
+    addresses = tuple(dict.fromkeys(str(info[4][0]) for info in infos))
     if not addresses:
         raise UnsafeUrlError("Repository host resolved to no addresses.",
                              details={"host": host})

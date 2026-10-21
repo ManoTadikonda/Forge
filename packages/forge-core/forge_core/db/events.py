@@ -6,10 +6,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from forge_core.db.models import AuditEvent, DeploymentEvent, Incident
-from forge_core.redaction import redact_object
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from forge_core.db.models import AuditEvent, DeploymentEvent, Incident
+from forge_core.redaction import redact_object
 
 
 async def record_event(

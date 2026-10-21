@@ -79,7 +79,7 @@ def redact_object(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {k: redact_value(str(k), v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
-        return type(value)(redact_object(v) for v in value)  # type: ignore[call-arg]
+        return type(value)(redact_object(v) for v in value)
     return value
 
 

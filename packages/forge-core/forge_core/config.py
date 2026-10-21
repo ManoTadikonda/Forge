@@ -140,6 +140,16 @@ class Settings(BaseSettings):
             raise ValueError("health_max_error_rate must be a fraction within 0..1")
         return value
 
+    @field_validator("workspace_root", "artifact_root", "log_root")
+    @classmethod
+    def _absolute(cls, value: Path) -> Path:
+        """Resolve runtime paths against the working directory once, at load time.
+
+        Workers, builders and the router start subprocesses with their own working
+        directories; a relative path would otherwise resolve differently per process.
+        """
+        return value if value.is_absolute() else (Path.cwd() / value).resolve()
+
     @property
     def is_development(self) -> bool:
         return self.environment in ("development", "test")
