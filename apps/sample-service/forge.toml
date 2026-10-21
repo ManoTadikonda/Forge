@@ -1,0 +1,38 @@
+# Forge pipeline manifest for the sample service.
+#
+# Commands are argument vectors, not shell strings: Forge executes them directly
+# without a shell and only permits executables on its allowlist.
+version = 1
+
+[service]
+name = "sample-service"
+port = 8080
+health_path = "/health"
+ready_path = "/ready"
+metrics_path = "/metrics"
+start = ["python", "-m", "uvicorn", "sample_service.main:app", "--host", "127.0.0.1"]
+
+[[lint]]
+name = "ruff"
+run = ["ruff", "check", "sample_service"]
+timeout_seconds = 120
+required = false
+
+[[test]]
+name = "unit tests"
+run = ["pytest", "-q", "tests"]
+timeout_seconds = 300
+required = true
+
+[build]
+dockerfile = "Dockerfile"
+context = "."
+include = ["sample_service", "pyproject.toml", "Dockerfile", "forge.toml"]
+
+[rollout]
+strategy = "canary"
+steps = [10, 25, 50, 100]
+step_seconds = 20
+max_error_rate = 0.05
+max_p95_latency_ms = 750.0
+min_samples = 20
