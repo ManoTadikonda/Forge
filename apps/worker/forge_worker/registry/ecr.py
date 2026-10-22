@@ -53,9 +53,7 @@ class EcrRegistry:
         stdout, _ = await process.communicate()
         return process.returncode or 0, stdout.decode("utf-8", "replace")
 
-    async def publish(
-        self, result: BuildResult, *, image_name: str, version: str
-    ) -> PublishResult:
+    async def publish(self, result: BuildResult, *, image_name: str, version: str) -> PublishResult:
         usable, reason = await self.available()
         if not usable:
             raise BuildError(f"ECR registry is not usable: {reason}")
@@ -70,7 +68,11 @@ class EcrRegistry:
         password = output.strip()
 
         login = await asyncio.create_subprocess_exec(
-            self._docker, "login", "--username", "AWS", "--password-stdin",
+            self._docker,
+            "login",
+            "--username",
+            "AWS",
+            "--password-stdin",
             self._registry_url,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,

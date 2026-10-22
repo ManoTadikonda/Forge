@@ -162,7 +162,8 @@ class Service(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("repositories.id", ondelete="SET NULL")
     )
     environment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("environments.id", ondelete="RESTRICT"),
+        UUID(as_uuid=True),
+        ForeignKey("environments.id", ondelete="RESTRICT"),
         nullable=False,
     )
     #: Digest of the release currently serving stable traffic.
@@ -214,7 +215,8 @@ class PipelineRun(Base, TimestampMixin):
 
     repository: Mapped[Repository | None] = relationship(back_populates="pipelines")
     stages: Mapped[list[PipelineStage]] = relationship(
-        back_populates="run", cascade="all, delete-orphan",
+        back_populates="run",
+        cascade="all, delete-orphan",
         order_by="PipelineStage.sequence",
     )
     artifacts: Mapped[list[Artifact]] = relationship(back_populates="pipeline_run")
@@ -222,9 +224,7 @@ class PipelineRun(Base, TimestampMixin):
     __table_args__ = (
         _check_in("state", PipelineState, "state_valid"),
         UniqueConstraint("repository_id", "run_number", name="uq_pipeline_runs_number"),
-        UniqueConstraint(
-            "repository_id", "idempotency_key", name="uq_pipeline_runs_idempotency"
-        ),
+        UniqueConstraint("repository_id", "idempotency_key", name="uq_pipeline_runs_idempotency"),
         Index("ix_pipeline_runs_repo_created", "repository_id", "created_at"),
         Index("ix_pipeline_runs_state_created", "state", "created_at"),
     )
@@ -237,8 +237,10 @@ class PipelineStage(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     run_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("pipeline_runs.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("pipeline_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(32), nullable=False)
     sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -332,9 +334,7 @@ class Artifact(Base, TimestampMixin):
     sbom_component_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     #: Only true when a real signature was produced; never set optimistically.
     signed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    signature_reference: Mapped[str] = mapped_column(
-        String(512), nullable=False, default=""
-    )
+    signature_reference: Mapped[str] = mapped_column(String(512), nullable=False, default="")
     scan_status: Mapped[str] = mapped_column(String(24), nullable=False, default="SKIPPED")
     scan_skip_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
     scan_summary: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
@@ -355,11 +355,14 @@ class Deployment(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     service_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("services.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("services.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     environment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("environments.id", ondelete="RESTRICT"),
+        UUID(as_uuid=True),
+        ForeignKey("environments.id", ondelete="RESTRICT"),
         nullable=False,
     )
     artifact_id: Mapped[uuid.UUID] = mapped_column(
@@ -389,31 +392,24 @@ class Deployment(Base, TimestampMixin):
     rollback_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
     #: Only set True after post-rollback HTTP verification succeeds.
     rollback_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    health_summary: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict
-    )
+    health_summary: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     duration_ms: Mapped[int | None] = mapped_column(Integer)
 
     service: Mapped[Service] = relationship()
     artifact: Mapped[Artifact] = relationship(foreign_keys=[artifact_id])
-    previous_artifact: Mapped[Artifact | None] = relationship(
-        foreign_keys=[previous_artifact_id]
-    )
+    previous_artifact: Mapped[Artifact | None] = relationship(foreign_keys=[previous_artifact_id])
     events: Mapped[list[DeploymentEvent]] = relationship(
-        back_populates="deployment", cascade="all, delete-orphan",
+        back_populates="deployment",
+        cascade="all, delete-orphan",
         order_by="DeploymentEvent.sequence",
     )
 
     __table_args__ = (
         _check_in("state", DeploymentState, "state_valid"),
-        UniqueConstraint(
-            "service_id", "idempotency_key", name="uq_deployments_idempotency"
-        ),
-        UniqueConstraint(
-            "service_id", "deployment_number", name="uq_deployments_number"
-        ),
+        UniqueConstraint("service_id", "idempotency_key", name="uq_deployments_idempotency"),
+        UniqueConstraint("service_id", "deployment_number", name="uq_deployments_number"),
         CheckConstraint(
             "current_weight >= 0 AND current_weight <= 100", name="ck_deployments_weight"
         ),
@@ -428,8 +424,10 @@ class DeploymentEvent(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     deployment_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("deployments.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     sequence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     kind: Mapped[str] = mapped_column(String(48), nullable=False)
@@ -455,8 +453,10 @@ class Release(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     service_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("services.id", ondelete="CASCADE"),
-        nullable=False, index=True,
+        UUID(as_uuid=True),
+        ForeignKey("services.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     deployment_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
@@ -555,9 +555,7 @@ class Job(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
-    state: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=JobState.PENDING.value
-    )
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default=JobState.PENDING.value)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     #: Unique per logical unit of work; makes enqueue idempotent under retry.
     dedupe_key: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -587,7 +585,8 @@ class Job(Base, TimestampMixin):
         # The hot path for claiming: narrow partial index over runnable work.
         Index(
             "ix_jobs_runnable",
-            "priority", "available_at",
+            "priority",
+            "available_at",
             postgresql_where=(state == JobState.PENDING.value),
         ),
         Index("ix_jobs_lease", "state", "lease_expires_at"),
@@ -638,9 +637,7 @@ class WebhookDelivery(Base):
         DateTime(timezone=True), nullable=False, index=True
     )
 
-    __table_args__ = (
-        UniqueConstraint("delivery_id", name="uq_webhook_deliveries_delivery_id"),
-    )
+    __table_args__ = (UniqueConstraint("delivery_id", name="uq_webhook_deliveries_delivery_id"),)
 
 
 class AuditEvent(Base):

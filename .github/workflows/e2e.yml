@@ -1,0 +1,124 @@
+# Longer end-to-end run: brings up a real stack and drives it with a browser.
+#
+# Separated from ci.yml so pull requests get fast feedback; this runs on main,
+# on demand, and nightly.
+name: End-to-end
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Nightly, so environment drift surfaces even without a push.
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  demo-and-browser:
+    name: Demo and browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: forge
+          POSTGRES_PASSWORD: forge-ci-password
+          POSTGRES_DB: forge
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U forge -d forge"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      FORGE_ENVIRONMENT: development
+      FORGE_DATABASE_URL: postgresql+asyncpg://forge:forge-ci-password@localhost:5432/forge
+      FORGE_REDIS_URL: redis://localhost:6379/0
+      FORGE_SECRET_KEY: ci-only-secret-key-at-least-32-characters
+      # Development-only bootstrap. Settings refuses this outside development.
+      FORGE_BOOTSTRAP_ADMIN_EMAIL: admin@forge.local
+      FORGE_BOOTSTRAP_ADMIN_PASSWORD: ci-only-admin-password-not-a-secret
+      FORGE_ALLOW_UNSANDBOXED_BUILDS: "true"
+      FORGE_LOG_FORMAT: json
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          cd apps/web && npm ci
+
+      - name: Configure git identity for checkouts
+        run: |
+          git config --global user.email "forge@localhost"
+          git config --global user.name "Forge CI"
+
+      - name: Migrate
+        run: |
+          source scripts/env.sh
+          cd packages/forge-core && alembic upgrade head
+
+      - name: Start router, API and worker
+        run: |
+          source scripts/env.sh
+          mkdir -p .forge/logs
+          python -m forge_router.app > .forge/logs/router.log 2>&1 &
+          python -m uvicorn forge_api.main:app --host 127.0.0.1 --port 8000 \
+            > .forge/logs/api.log 2>&1 &
+          python -m forge_worker.runtime > .forge/logs/worker.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8000/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8000/health
+          curl -sf http://127.0.0.1:8099/health
+
+      - name: Seed the demo repository
+        run: |
+          source scripts/env.sh
+          python -m forge_api.cli seed-demo
+
+      - name: Run the demonstration (healthy release, then rollback)
+        run: |
+          source scripts/env.sh
+          python scripts/demo.py
+
+      - name: Install Playwright browser
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        working-directory: apps/web
+        run: npx playwright test
+
+      - name: Upload logs and reports on failure
+        if: failure()
+        uses: actions/upload-artifact@6f51ac03b9356f520e9adb1b1b7802705f340c2b # v4.5.0
+        with:
+          name: e2e-diagnostics
+          path: |
+            .forge/logs/
+            apps/web/playwright-report/
+            apps/web/test-results/
+          retention-days: 7

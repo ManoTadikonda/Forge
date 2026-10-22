@@ -37,19 +37,23 @@ async def _seed_service(maker: Maker) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
     async with maker() as session, session.begin():
         environment = Environment(id=uuid.uuid4(), name="development", config={})
         repository = Repository(
-            id=uuid.uuid4(), name="demo", url="https://github.com/demo/app",
+            id=uuid.uuid4(),
+            name="demo",
+            url="https://github.com/demo/app",
             slug="github.com/demo/app",
         )
         session.add_all([environment, repository])
         await session.flush()
 
-        service = Service(
-            id=uuid.uuid4(), name="demo", environment_id=environment.id, config={}
-        )
+        service = Service(id=uuid.uuid4(), name="demo", environment_id=environment.id, config={})
         artifact = Artifact(
-            id=uuid.uuid4(), digest=f"sha256:{uuid.uuid4().hex * 2}",
-            image_name="demo", version="1.0.0", registry_name="local",
-            provenance={}, scan_summary={},
+            id=uuid.uuid4(),
+            digest=f"sha256:{uuid.uuid4().hex * 2}",
+            image_name="demo",
+            version="1.0.0",
+            registry_name="local",
+            provenance={},
+            scan_summary={},
         )
         session.add_all([service, artifact])
         await session.flush()
@@ -57,15 +61,16 @@ async def _seed_service(maker: Maker) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
 
 
 class TestWorkerCrashDuringJob:
-    async def test_job_is_reclaimed_after_a_worker_dies(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_job_is_reclaimed_after_a_worker_dies(self, sessionmaker_fixture: Maker) -> None:
         """A worker killed mid-job must not strand the work forever."""
         maker = sessionmaker_fixture
         async with maker() as session, session.begin():
             await queue.enqueue(
-                session, kind=JobKind.RUN_PIPELINE, dedupe_key="crash:1",
-                payload={"pipeline_run_id": str(uuid.uuid4())}, max_attempts=3,
+                session,
+                kind=JobKind.RUN_PIPELINE,
+                dedupe_key="crash:1",
+                payload={"pipeline_run_id": str(uuid.uuid4())},
+                max_attempts=3,
             )
         async with maker() as session, session.begin():
             crashed = await queue.claim_one(session, worker_id="doomed", lease_seconds=1)
@@ -92,7 +97,9 @@ class TestWorkerCrashDuringJob:
         maker = sessionmaker_fixture
         async with maker() as session, session.begin():
             await queue.enqueue(
-                session, kind=JobKind.RUN_PIPELINE, dedupe_key="zombie:1",
+                session,
+                kind=JobKind.RUN_PIPELINE,
+                dedupe_key="zombie:1",
                 max_attempts=5,
             )
         async with maker() as session, session.begin():
@@ -118,8 +125,10 @@ class TestWorkerCrashDuringJob:
         for index in range(12):
             async with maker() as session, session.begin():
                 await queue.enqueue(
-                    session, kind=JobKind.RUN_PIPELINE,
-                    dedupe_key=f"bulk:{index}", max_attempts=3,
+                    session,
+                    kind=JobKind.RUN_PIPELINE,
+                    dedupe_key=f"bulk:{index}",
+                    max_attempts=3,
                 )
         for index in range(12):
             async with maker() as session, session.begin():
@@ -133,22 +142,16 @@ class TestWorkerCrashDuringJob:
 
 
 class TestDuplicateDelivery:
-    async def test_duplicate_enqueue_creates_one_job(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_duplicate_enqueue_creates_one_job(self, sessionmaker_fixture: Maker) -> None:
         maker = sessionmaker_fixture
         for _ in range(5):
             async with maker() as session, session.begin():
-                await queue.enqueue(
-                    session, kind=JobKind.RUN_PIPELINE, dedupe_key="same-work"
-                )
+                await queue.enqueue(session, kind=JobKind.RUN_PIPELINE, dedupe_key="same-work")
         async with maker() as session:
             count = await session.scalar(text("SELECT COUNT(*) FROM jobs"))
         assert count == 1
 
-    async def test_concurrent_duplicate_enqueue_is_safe(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_concurrent_duplicate_enqueue_is_safe(self, sessionmaker_fixture: Maker) -> None:
         """The unique constraint, not application-level checking, is what guarantees it."""
         maker = sessionmaker_fixture
 
@@ -156,9 +159,7 @@ class TestDuplicateDelivery:
             # A losing racer raises on the unique constraint; that is the point.
             with contextlib.suppress(Exception):
                 async with maker() as session, session.begin():
-                    await queue.enqueue(
-                        session, kind=JobKind.RUN_PIPELINE, dedupe_key="race"
-                    )
+                    await queue.enqueue(session, kind=JobKind.RUN_PIPELINE, dedupe_key="race")
 
         await asyncio.gather(*(attempt() for _ in range(10)))
         async with maker() as session:
@@ -175,14 +176,18 @@ class TestDuplicateDelivery:
         maker = sessionmaker_fixture
         async with maker() as session, session.begin():
             repository = Repository(
-                id=uuid.uuid4(), name="demo", url="https://github.com/demo/app",
+                id=uuid.uuid4(),
+                name="demo",
+                url="https://github.com/demo/app",
                 slug="github.com/demo/app",
             )
             session.add(repository)
             await session.flush()
             run = PipelineRun(
-                id=uuid.uuid4(), repository_id=repository.id,
-                repository_label=repository.slug, run_number=1,
+                id=uuid.uuid4(),
+                repository_id=repository.id,
+                repository_label=repository.slug,
+                run_number=1,
                 state=PipelineState.SUCCEEDED.value,
             )
             session.add(run)
@@ -190,8 +195,11 @@ class TestDuplicateDelivery:
             run_id = run.id
 
         runner = PipelineRunner(
-            sessionmaker=maker, builder=None, registry=None,
-            settings=Settings(environment="test"), worker_id="w1",
+            sessionmaker=maker,
+            builder=None,
+            registry=None,
+            settings=Settings(environment="test"),
+            worker_id="w1",
         )
         # Must return the terminal state without re-running anything.
         assert await runner.run(run_id) is PipelineState.SUCCEEDED
@@ -237,13 +245,9 @@ class TestConcurrentDeployments:
         other_environment = uuid.uuid4()
 
         async with maker() as session, session.begin():
-            await locking.acquire(
-                session, locking.resource_key(service_id, environment_id), "a"
-            )
+            await locking.acquire(session, locking.resource_key(service_id, environment_id), "a")
         async with maker() as session, session.begin():
-            await locking.acquire(
-                session, locking.resource_key(service_id, other_environment), "b"
-            )
+            await locking.acquire(session, locking.resource_key(service_id, other_environment), "b")
 
 
 class TestDurabilityAcrossRestart:
@@ -257,11 +261,17 @@ class TestDurabilityAcrossRestart:
         service_id, environment_id, artifact_id = await _seed_service(maker)
         async with maker() as session, session.begin():
             deployment = Deployment(
-                id=uuid.uuid4(), service_id=service_id, environment_id=environment_id,
-                artifact_id=artifact_id, state=DeploymentState.ROLLED_BACK.value,
-                deployment_number=1, canary_steps={"steps": [10, 100]},
-                rollback_reason="error rate breached", rollback_verified=True,
-                health_summary={}, current_weight=0,
+                id=uuid.uuid4(),
+                service_id=service_id,
+                environment_id=environment_id,
+                artifact_id=artifact_id,
+                state=DeploymentState.ROLLED_BACK.value,
+                deployment_number=1,
+                canary_steps={"steps": [10, 100]},
+                rollback_reason="error rate breached",
+                rollback_verified=True,
+                health_summary={},
+                current_weight=0,
             )
             session.add(deployment)
             await session.flush()
@@ -287,9 +297,7 @@ class TestDurabilityAcrossRestart:
 
         maker = sessionmaker_fixture
         async with maker() as session, session.begin():
-            await queue.enqueue(
-                session, kind=JobKind.RUN_DEPLOYMENT, dedupe_key="survives-restart"
-            )
+            await queue.enqueue(session, kind=JobKind.RUN_DEPLOYMENT, dedupe_key="survives-restart")
 
         fresh_engine = create_engine(schema, pool_size=2, max_overflow=0)
         try:
@@ -303,21 +311,15 @@ class TestDurabilityAcrossRestart:
 
 
 class TestCancellation:
-    async def test_repeated_cancellation_is_idempotent(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_repeated_cancellation_is_idempotent(self, sessionmaker_fixture: Maker) -> None:
         maker = sessionmaker_fixture
         async with maker() as session, session.begin():
-            await queue.enqueue(
-                session, kind=JobKind.RUN_PIPELINE, dedupe_key="cancel-me"
-            )
+            await queue.enqueue(session, kind=JobKind.RUN_PIPELINE, dedupe_key="cancel-me")
         for _ in range(5):
             async with maker() as session, session.begin():
                 await queue.request_cancel(session, "cancel-me")
         async with maker() as session:
-            flagged = await session.scalar(
-                text("SELECT COUNT(*) FROM jobs WHERE cancel_requested")
-            )
+            flagged = await session.scalar(text("SELECT COUNT(*) FROM jobs WHERE cancel_requested"))
         assert flagged == 1
 
     async def test_cancelling_a_finished_job_changes_nothing(
@@ -325,9 +327,7 @@ class TestCancellation:
     ) -> None:
         maker = sessionmaker_fixture
         async with maker() as session, session.begin():
-            await queue.enqueue(
-                session, kind=JobKind.RUN_PIPELINE, dedupe_key="done"
-            )
+            await queue.enqueue(session, kind=JobKind.RUN_PIPELINE, dedupe_key="done")
         async with maker() as session, session.begin():
             claimed = await queue.claim_one(session, worker_id="w1")
             assert claimed is not None

@@ -73,7 +73,8 @@ async def create_pipeline_run(
             select(func.coalesce(func.max(PipelineRun.run_number), 0) + 1).where(
                 PipelineRun.repository_id == repository.id
             )
-        ) or 1
+        )
+        or 1
     )
 
     run = PipelineRun(
@@ -93,11 +94,7 @@ async def create_pipeline_run(
     # Pre-create the stage rows so the dashboard can render the full timeline
     # immediately, with not-yet-run stages shown as pending.
     for index, name in enumerate(STAGE_SEQUENCE):
-        session.add(
-            PipelineStage(
-                id=uuid.uuid4(), run_id=run.id, name=name.value, sequence=index
-            )
-        )
+        session.add(PipelineStage(id=uuid.uuid4(), run_id=run.id, name=name.value, sequence=index))
 
     repository.last_pipeline_at = datetime.now(UTC)
     # Same transaction as the run row: a run can never exist without its job.
@@ -112,7 +109,9 @@ async def create_pipeline_run(
 
 
 @router.post(
-    "", response_model=PipelineOut, status_code=status.HTTP_201_CREATED,
+    "",
+    response_model=PipelineOut,
+    status_code=status.HTTP_201_CREATED,
     summary="Trigger a pipeline",
 )
 async def trigger_pipeline(
@@ -134,30 +133,39 @@ async def trigger_pipeline(
         await session.scalar(
             select(func.count(PipelineRun.id)).where(
                 PipelineRun.repository_id == repository.id,
-                PipelineRun.state.notin_([
-                    PipelineState.SUCCEEDED.value,
-                    PipelineState.FAILED.value,
-                    PipelineState.CANCELED.value,
-                ]),
+                PipelineRun.state.notin_(
+                    [
+                        PipelineState.SUCCEEDED.value,
+                        PipelineState.FAILED.value,
+                        PipelineState.CANCELED.value,
+                    ]
+                ),
             )
-        ) or 0
+        )
+        or 0
     )
     if running >= settings.max_concurrent_pipelines_per_repository:
         raise ConflictError(
             "A pipeline is already running for this repository.",
-            details={"running": running,
-                     "limit": settings.max_concurrent_pipelines_per_repository},
+            details={"running": running, "limit": settings.max_concurrent_pipelines_per_repository},
         )
 
     run, created = await create_pipeline_run(
-        session, repository=repository, branch=payload.branch,
-        trigger="manual", triggered_by_id=user.id,
+        session,
+        repository=repository,
+        branch=payload.branch,
+        trigger="manual",
+        triggered_by_id=user.id,
         idempotency_key=payload.idempotency_key,
     )
     if created:
         await record_audit(
-            session, action="pipeline.trigger", actor_id=user.id,
-            actor_label=user.email, resource_type="pipeline", resource_id=str(run.id),
+            session,
+            action="pipeline.trigger",
+            actor_id=user.id,
+            actor_label=user.email,
+            resource_type="pipeline",
+            resource_id=str(run.id),
             detail={"repository": repository.slug, "branch": run.branch},
             ip_address=request.client.host if request.client else "",
             request_id=getattr(request.state, "request_id", ""),
@@ -187,9 +195,7 @@ async def list_pipelines(
     if branch:
         conditions.append(PipelineRun.branch == branch)
 
-    total = int(
-        await session.scalar(select(func.count(PipelineRun.id)).where(*conditions)) or 0
-    )
+    total = int(await session.scalar(select(func.count(PipelineRun.id)).where(*conditions)) or 0)
     rows = (
         await session.execute(
             select(PipelineRun)
@@ -201,7 +207,9 @@ async def list_pipelines(
     ).scalars()
     return Page(
         items=[PipelineOut.model_validate(r) for r in rows],
-        total=total, limit=limit, offset=offset,
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -228,9 +236,7 @@ async def get_pipeline(
         raise NotFoundError("No such pipeline run.")
 
     artifacts = (
-        await session.execute(
-            select(Artifact).where(Artifact.pipeline_run_id == pipeline_id)
-        )
+        await session.execute(select(Artifact).where(Artifact.pipeline_run_id == pipeline_id))
     ).scalars()
 
     detail = PipelineDetail.model_validate(run)
@@ -253,13 +259,19 @@ async def get_logs(
     if run is None:
         raise NotFoundError("No such pipeline run.")
     chunks = await read_logs(
-        session, owner_type="pipeline", owner_id=pipeline_id,
-        offset=offset, limit=limit,
+        session,
+        owner_type="pipeline",
+        owner_id=pipeline_id,
+        offset=offset,
+        limit=limit,
     )
     return [
         LogLine(
-            sequence=c.sequence, stage=c.stage, content=c.content,
-            truncated=c.truncated, created_at=c.created_at,
+            sequence=c.sequence,
+            stage=c.stage,
+            content=c.content,
+            truncated=c.truncated,
+            created_at=c.created_at,
         )
         for c in chunks
     ]
@@ -277,7 +289,9 @@ async def cancel_pipeline(
         raise NotFoundError("No such pipeline run.")
 
     if PipelineState(run.state) in (
-        PipelineState.SUCCEEDED, PipelineState.FAILED, PipelineState.CANCELED
+        PipelineState.SUCCEEDED,
+        PipelineState.FAILED,
+        PipelineState.CANCELED,
     ):
         # Cancellation is idempotent: repeat requests on a finished run are accepted
         # and change nothing, rather than erroring.
@@ -286,8 +300,12 @@ async def cancel_pipeline(
     run.cancel_requested = True
     await queue.request_cancel(session, job_key(pipeline_id))
     await record_audit(
-        session, action="pipeline.cancel", actor_id=user.id, actor_label=user.email,
-        resource_type="pipeline", resource_id=str(pipeline_id),
+        session,
+        action="pipeline.cancel",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="pipeline",
+        resource_id=str(pipeline_id),
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )

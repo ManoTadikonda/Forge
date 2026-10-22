@@ -53,3 +53,7 @@ credentials.json
 
 # frontend build metadata
 apps/web/tsconfig.*.tsbuildinfo
+
+# terraform variable files frequently contain account-specific values
+infra/terraform/environments/*.tfvars
+!infra/terraform/environments/*.tfvars.example

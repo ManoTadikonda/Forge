@@ -43,8 +43,10 @@ class DockerDeploymentAdapter:
 
     async def _run(self, *args: str) -> tuple[int, str]:
         process = await asyncio.create_subprocess_exec(
-            self._binary, *args,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            self._binary,
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
         stdout, _ = await process.communicate()
         return process.returncode or 0, stdout.decode("utf-8", "replace")
@@ -71,9 +73,7 @@ class DockerDeploymentAdapter:
 
         name = self._container_name(spec)
         # Idempotency: an already-running container is adopted, not duplicated.
-        code, running = await self._run(
-            "ps", "--filter", f"name=^{name}$", "--format", "{{.ID}}"
-        )
+        code, running = await self._run("ps", "--filter", f"name=^{name}$", "--format", "{{.ID}}")
         if code == 0 and running.strip():
             handle = await self._inspect(name, spec)
             self._handles[spec.release_id] = handle
@@ -82,24 +82,43 @@ class DockerDeploymentAdapter:
         await self._run("rm", "-f", name)
 
         argv = [
-            "run", "--detach", "--name", name,
-            "--network", self._network,
+            "run",
+            "--detach",
+            "--name",
+            name,
+            "--network",
+            self._network,
             # Least privilege: no new privileges, read-only root, dropped caps.
-            "--security-opt", "no-new-privileges",
-            "--cap-drop", "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--cap-drop",
+            "ALL",
             "--read-only",
             # Container-internal tmpfs, not a host path: the root filesystem is
             # read-only so the app needs a small writable scratch area.
-            "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",  # noqa: S108
-            "--user", "10001:10001",
+            "--tmpfs",
+            "/tmp:rw,noexec,nosuid,size=64m",  # noqa: S108
+            "--user",
+            "10001:10001",
             # Resource limits so one release cannot starve the host.
-            "--memory", "512m", "--cpus", "1.0", "--pids-limit", "256",
-            "--publish", "0",  # ephemeral host port
-            "--restart", "no",
-            "--label", "forge.managed=true",
-            "--label", f"forge.release={spec.release_id}",
-            "--label", f"forge.service={spec.service_name}",
-            "--label", f"forge.environment={spec.environment}",
+            "--memory",
+            "512m",
+            "--cpus",
+            "1.0",
+            "--pids-limit",
+            "256",
+            "--publish",
+            "0",  # ephemeral host port
+            "--restart",
+            "no",
+            "--label",
+            "forge.managed=true",
+            "--label",
+            f"forge.release={spec.release_id}",
+            "--label",
+            f"forge.service={spec.service_name}",
+            "--label",
+            f"forge.environment={spec.environment}",
         ]
         for key, value in {
             "SAMPLE_VERSION": spec.version,
@@ -110,8 +129,11 @@ class DockerDeploymentAdapter:
             argv += ["--env", f"{key}={value}"]
 
         # Deploy strictly by digest; a mutable tag is never used to resolve a release.
-        argv.append(spec.image_digest if "@" in spec.image_digest
-                    else f"{spec.service_name}@{spec.image_digest}")
+        argv.append(
+            spec.image_digest
+            if "@" in spec.image_digest
+            else f"{spec.service_name}@{spec.image_digest}"
+        )
 
         code, output = await self._run(*argv)
         if code != 0:
@@ -153,8 +175,9 @@ class DockerDeploymentAdapter:
         deadline = asyncio.get_running_loop().time() + timeout_seconds
         while asyncio.get_running_loop().time() < deadline:
             try:
-                if (await client.get(f"{handle.primary_endpoint}/ready",
-                                     timeout=3.0)).status_code == 200:
+                if (
+                    await client.get(f"{handle.primary_endpoint}/ready", timeout=3.0)
+                ).status_code == 200:
                     return True
             except httpx.RequestError:
                 pass
@@ -198,15 +221,12 @@ class DockerDeploymentAdapter:
         client = await self._http()
         response = await client.post(
             f"{self._router_admin_url}/weights",
-            json={"service": service_name, "environment": environment,
-                  "weights": dict(weights)},
+            json={"service": service_name, "environment": environment, "weights": dict(weights)},
         )
         if response.status_code >= 400:
             raise DeploymentError("Router rejected the weight change.")
 
-    async def get_traffic_weights(
-        self, service_name: str, environment: str
-    ) -> Mapping[str, int]:
+    async def get_traffic_weights(self, service_name: str, environment: str) -> Mapping[str, int]:
         client = await self._http()
         response = await client.get(
             f"{self._router_admin_url}/stats",
@@ -219,20 +239,22 @@ class DockerDeploymentAdapter:
         await self._run("rm", "-f", name)
         self._handles.pop(handle.release_id, None)
 
-    async def list_releases(
-        self, service_name: str, environment: str
-    ) -> Sequence[ReleaseHandle]:
+    async def list_releases(self, service_name: str, environment: str) -> Sequence[ReleaseHandle]:
         code, output = await self._run(
-            "ps", "--filter", "label=forge.managed=true",
-            "--filter", f"label=forge.service={service_name}",
-            "--filter", f"label=forge.environment={environment}",
-            "--format", "{{.Names}}",
+            "ps",
+            "--filter",
+            "label=forge.managed=true",
+            "--filter",
+            f"label=forge.service={service_name}",
+            "--filter",
+            f"label=forge.environment={environment}",
+            "--format",
+            "{{.Names}}",
         )
         if code != 0:
             return []
         names = {line.strip() for line in output.splitlines() if line.strip()}
-        return [h for h in self._handles.values()
-                if self._container_name(h) in names]
+        return [h for h in self._handles.values() if self._container_name(h) in names]
 
 
 __all__ = ["DockerDeploymentAdapter"]

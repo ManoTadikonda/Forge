@@ -74,9 +74,7 @@ def decide(
     current_weight = plan.weight_at(step_index)
 
     if assessment.verdict is HealthVerdict.UNHEALTHY:
-        return CanaryDecision(
-            CanaryAction.ABORT, assessment.reason, step_index, current_weight
-        )
+        return CanaryDecision(CanaryAction.ABORT, assessment.reason, step_index, current_weight)
 
     window_elapsed = seconds_in_step >= plan.step_seconds
 
@@ -84,8 +82,7 @@ def decide(
         if window_elapsed and abort_on_unknown_after_window:
             return CanaryDecision(
                 CanaryAction.ABORT,
-                f"Health could not be confirmed within the observation window: "
-                f"{assessment.reason}",
+                f"Health could not be confirmed within the observation window: {assessment.reason}",
                 step_index,
                 current_weight,
             )
@@ -100,8 +97,7 @@ def decide(
         remaining = plan.step_seconds - seconds_in_step
         return CanaryDecision(
             CanaryAction.HOLD,
-            f"Healthy at {current_weight}%; {remaining:.0f}s left in the "
-            f"observation window.",
+            f"Healthy at {current_weight}%; {remaining:.0f}s left in the observation window.",
             step_index,
             current_weight,
         )

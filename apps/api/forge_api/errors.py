@@ -42,20 +42,23 @@ def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ForgeError)
     async def _forge_error(request: Request, exc: ForgeError) -> JSONResponse:
         logger.info(
-            "domain_error", code=exc.code, status=exc.http_status, message=exc.message,
+            "domain_error",
+            code=exc.code,
+            status=exc.http_status,
+            message=exc.message,
         )
         return JSONResponse(
             status_code=exc.http_status,
             content=error_body(
-                exc.code, exc.message,
-                request_id=_request_id(request), details=exc.details,
+                exc.code,
+                exc.message,
+                request_id=_request_id(request),
+                details=exc.details,
             ),
         )
 
     @app.exception_handler(RequestValidationError)
-    async def _validation_error(
-        request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
+    async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
         # Field errors are safe to return: they describe the client's own request.
         details = [
             {
@@ -68,15 +71,15 @@ def install_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=error_body(
-                "validation_error", "The request body or parameters are invalid.",
-                request_id=_request_id(request), details=details,
+                "validation_error",
+                "The request body or parameters are invalid.",
+                request_id=_request_id(request),
+                details=details,
             ),
         )
 
     @app.exception_handler(StarletteHTTPException)
-    async def _http_error(
-        request: Request, exc: StarletteHTTPException
-    ) -> JSONResponse:
+    async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = {
             401: "authentication_required",
             403: "forbidden",
@@ -87,9 +90,7 @@ def install_error_handlers(app: FastAPI) -> None:
         }.get(exc.status_code, "http_error")
         return JSONResponse(
             status_code=exc.status_code,
-            content=error_body(
-                code, str(exc.detail), request_id=_request_id(request)
-            ),
+            content=error_body(code, str(exc.detail), request_id=_request_id(request)),
             headers=getattr(exc, "headers", None),
         )
 
@@ -97,7 +98,9 @@ def install_error_handlers(app: FastAPI) -> None:
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
         # Full detail to the log, nothing to the client but a correlation id.
         logger.exception(
-            "unhandled_exception", path=request.url.path, method=request.method,
+            "unhandled_exception",
+            path=request.url.path,
+            method=request.method,
         )
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

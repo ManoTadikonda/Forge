@@ -9,9 +9,7 @@ from forge_worker import locking
 
 def test_resource_key_is_stable() -> None:
     service, environment = uuid.uuid4(), uuid.uuid4()
-    assert locking.resource_key(service, environment) == locking.resource_key(
-        service, environment
-    )
+    assert locking.resource_key(service, environment) == locking.resource_key(service, environment)
 
 
 def test_resource_key_is_scoped_per_environment() -> None:

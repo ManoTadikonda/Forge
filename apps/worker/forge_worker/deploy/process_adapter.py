@@ -138,15 +138,26 @@ class ProcessDeploymentAdapter:
         log_path = workdir / "release.log"
         log_handle = log_path.open("ab")
         argv = [
-            sys.executable, "-m", "uvicorn", "sample_service.main:app",
-            "--host", self._host, "--port", str(port), "--log-level", "warning",
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "sample_service.main:app",
+            "--host",
+            self._host,
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
         ]
         # Popen (not asyncio.create_subprocess_exec) because the release must
         # outlive this coroutine and be supervised by PID across controller
         # restarts. Popen forks and returns immediately; it does not block.
         process = subprocess.Popen(  # noqa: S603, ASYNC220
-            argv, cwd=str(workdir), env=env,
-            stdout=log_handle, stderr=subprocess.STDOUT,
+            argv,
+            cwd=str(workdir),
+            env=env,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
             start_new_session=True,  # own process group, so cleanup is complete
         )
         self._processes[spec.release_id] = process
@@ -162,8 +173,12 @@ class ProcessDeploymentAdapter:
         self._handles[spec.release_id] = handle
         self._specs[spec.release_id] = spec
         logger.info(
-            "release_started", release_id=spec.release_id, version=spec.version,
-            pid=process.pid, port=port, digest=spec.image_digest,
+            "release_started",
+            release_id=spec.release_id,
+            version=spec.version,
+            pid=process.pid,
+            port=port,
+            digest=spec.image_digest,
         )
         return handle
 
@@ -180,7 +195,8 @@ class ProcessDeploymentAdapter:
             if process is not None and process.poll() is not None:
                 logger.warning(
                     "release_exited_during_startup",
-                    release_id=handle.release_id, exit_code=process.returncode,
+                    release_id=handle.release_id,
+                    exit_code=process.returncode,
                 )
                 return False
             try:
@@ -231,8 +247,11 @@ class ProcessDeploymentAdapter:
     # ------------------------------------------------------------------ routing
 
     async def register_route(
-        self, service_name: str, environment: str,
-        handles: Sequence[ReleaseHandle], weights: Mapping[str, int],
+        self,
+        service_name: str,
+        environment: str,
+        handles: Sequence[ReleaseHandle],
+        weights: Mapping[str, int],
     ) -> None:
         """Publish the set of routable releases and their initial weights."""
         client = await self._http()
@@ -240,8 +259,7 @@ class ProcessDeploymentAdapter:
             "service": service_name,
             "environment": environment,
             "targets": [
-                {"release_id": h.release_id, "version": h.version,
-                 "url": h.primary_endpoint}
+                {"release_id": h.release_id, "version": h.version, "url": h.primary_endpoint}
                 for h in handles
             ],
             "weights": dict(weights),
@@ -257,14 +275,11 @@ class ProcessDeploymentAdapter:
     ) -> None:
         total = sum(weights.values())
         if total != 100:
-            raise DeploymentError(
-                f"Traffic weights must sum to 100; received {total}."
-            )
+            raise DeploymentError(f"Traffic weights must sum to 100; received {total}.")
         client = await self._http()
         response = await client.post(
             f"{self._router_admin_url}/weights",
-            json={"service": service_name, "environment": environment,
-                  "weights": dict(weights)},
+            json={"service": service_name, "environment": environment, "weights": dict(weights)},
         )
         if response.status_code >= 400:
             raise DeploymentError(
@@ -273,12 +288,12 @@ class ProcessDeploymentAdapter:
             )
         logger.info(
             "traffic_weights_applied",
-            service=service_name, environment=environment, weights=dict(weights),
+            service=service_name,
+            environment=environment,
+            weights=dict(weights),
         )
 
-    async def get_traffic_weights(
-        self, service_name: str, environment: str
-    ) -> Mapping[str, int]:
+    async def get_traffic_weights(self, service_name: str, environment: str) -> Mapping[str, int]:
         client = await self._http()
         response = await client.get(
             f"{self._router_admin_url}/stats",
@@ -288,9 +303,7 @@ class ProcessDeploymentAdapter:
             return {}
         return dict(response.json().get("weights", {}))
 
-    async def router_stats(
-        self, service_name: str, environment: str
-    ) -> dict[str, dict[str, int]]:
+    async def router_stats(self, service_name: str, environment: str) -> dict[str, dict[str, int]]:
         """Router-side request counters — the second, independent traffic measurement."""
         client = await self._http()
         response = await client.get(
@@ -335,14 +348,11 @@ class ProcessDeploymentAdapter:
         await asyncio.to_thread(_terminate)
         logger.info("release_stopped", release_id=handle.release_id)
 
-    async def list_releases(
-        self, service_name: str, environment: str
-    ) -> Sequence[ReleaseHandle]:
+    async def list_releases(self, service_name: str, environment: str) -> Sequence[ReleaseHandle]:
         return [
             handle
             for release_id, handle in self._handles.items()
-            if (process := self._processes.get(release_id)) is not None
-            and process.poll() is None
+            if (process := self._processes.get(release_id)) is not None and process.poll() is None
         ]
 
     def is_running(self, release_id: str) -> bool:

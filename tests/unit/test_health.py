@@ -13,9 +13,14 @@ NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
 def sample(**kwargs: object) -> HealthSample:
     defaults: dict[str, object] = {
-        "observed_at": NOW, "requests": 100, "errors": 0,
-        "latency_p50_ms": 10.0, "latency_p95_ms": 50.0, "latency_p99_ms": 90.0,
-        "healthy_endpoint": True, "ready_endpoint": True,
+        "observed_at": NOW,
+        "requests": 100,
+        "errors": 0,
+        "latency_p50_ms": 10.0,
+        "latency_p95_ms": 50.0,
+        "latency_p99_ms": 90.0,
+        "healthy_endpoint": True,
+        "ready_endpoint": True,
     }
     defaults.update(kwargs)
     return HealthSample(**defaults)  # type: ignore[arg-type]
@@ -30,9 +35,7 @@ class TestUnknownIsNeverHealthy:
         assert not result.is_healthy
 
     def test_insufficient_samples_is_unknown(self) -> None:
-        result = analyze(
-            [sample(requests=5, errors=0)], HealthThresholds(min_samples=20), now=NOW
-        )
+        result = analyze([sample(requests=5, errors=0)], HealthThresholds(min_samples=20), now=NOW)
         assert result.verdict is HealthVerdict.UNKNOWN
         assert "Insufficient traffic" in result.reason
 
@@ -44,9 +47,7 @@ class TestUnknownIsNeverHealthy:
 
     def test_zero_errors_with_no_traffic_is_not_healthy(self) -> None:
         """0/0 is a 0% error rate arithmetically, but says nothing about health."""
-        result = analyze(
-            [sample(requests=0, errors=0)], HealthThresholds(min_samples=20), now=NOW
-        )
+        result = analyze([sample(requests=0, errors=0)], HealthThresholds(min_samples=20), now=NOW)
         assert result.verdict is HealthVerdict.UNKNOWN
 
 
@@ -98,46 +99,48 @@ class TestThresholdBreaches:
         assert "probe_failed" in result.breaches
 
     def test_failing_readiness_probe_is_unhealthy(self) -> None:
-        result = analyze(
-            [sample(ready_endpoint=False)], HealthThresholds(min_samples=20), now=NOW
-        )
+        result = analyze([sample(ready_endpoint=False)], HealthThresholds(min_samples=20), now=NOW)
         assert result.verdict is HealthVerdict.UNHEALTHY
 
 
 class TestBaselineComparison:
     def test_latency_regression_against_stable_breaches(self) -> None:
-        baseline = analyze([sample(latency_p95_ms=50.0)],
-                           HealthThresholds(min_samples=20), now=NOW)
+        baseline = analyze([sample(latency_p95_ms=50.0)], HealthThresholds(min_samples=20), now=NOW)
         # Below the absolute ceiling, but 10x worse than stable.
         result = analyze(
             [sample(latency_p95_ms=500.0)],
-            HealthThresholds(min_samples=20, max_p95_latency_ms=5000.0,
-                             max_latency_regression_factor=3.0),
-            now=NOW, baseline=baseline,
+            HealthThresholds(
+                min_samples=20, max_p95_latency_ms=5000.0, max_latency_regression_factor=3.0
+            ),
+            now=NOW,
+            baseline=baseline,
         )
         assert result.verdict is HealthVerdict.UNHEALTHY
         assert "latency_regression" in result.breaches
 
     def test_error_rate_regression_against_stable_breaches(self) -> None:
-        baseline = analyze([sample(requests=100, errors=0)],
-                           HealthThresholds(min_samples=20), now=NOW)
+        baseline = analyze(
+            [sample(requests=100, errors=0)], HealthThresholds(min_samples=20), now=NOW
+        )
         result = analyze(
             [sample(requests=100, errors=30)],
-            HealthThresholds(min_samples=20, max_error_rate=0.9,
-                             max_error_rate_regression=0.05),
-            now=NOW, baseline=baseline,
+            HealthThresholds(min_samples=20, max_error_rate=0.9, max_error_rate_regression=0.05),
+            now=NOW,
+            baseline=baseline,
         )
         assert result.verdict is HealthVerdict.UNHEALTHY
         assert "error_rate_regression" in result.breaches
 
     def test_baseline_with_too_little_traffic_is_ignored(self) -> None:
         """A noisy baseline must not cause spurious regression verdicts."""
-        baseline = analyze([sample(requests=2, latency_p95_ms=1.0)],
-                           HealthThresholds(min_samples=20), now=NOW)
+        baseline = analyze(
+            [sample(requests=2, latency_p95_ms=1.0)], HealthThresholds(min_samples=20), now=NOW
+        )
         result = analyze(
             [sample(latency_p95_ms=100.0)],
             HealthThresholds(min_samples=20, max_p95_latency_ms=5000.0),
-            now=NOW, baseline=baseline,
+            now=NOW,
+            baseline=baseline,
         )
         assert result.verdict is HealthVerdict.HEALTHY
 
@@ -154,15 +157,17 @@ class TestHealthyPath:
     def test_mixed_fresh_and_stale_uses_only_fresh(self) -> None:
         fresh = sample(requests=100, errors=0)
         stale = sample(observed_at=NOW - timedelta(seconds=900), requests=100, errors=100)
-        result = analyze([stale, fresh], HealthThresholds(min_samples=20,
-                                                          staleness_seconds=60), now=NOW)
+        result = analyze(
+            [stale, fresh], HealthThresholds(min_samples=20, staleness_seconds=60), now=NOW
+        )
         assert result.verdict is HealthVerdict.HEALTHY
         assert result.requests == 100
         assert result.errors == 0
 
     def test_assessment_serialises_its_evidence(self) -> None:
-        result = analyze([sample(requests=100, errors=50)],
-                         HealthThresholds(min_samples=20), now=NOW)
+        result = analyze(
+            [sample(requests=100, errors=50)], HealthThresholds(min_samples=20), now=NOW
+        )
         payload = result.as_dict()
         assert payload["verdict"] == "UNHEALTHY"
         assert payload["requests"] == 100

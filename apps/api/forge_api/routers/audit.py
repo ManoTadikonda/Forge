@@ -33,9 +33,7 @@ async def list_audit_events(
     if resource_type:
         conditions.append(AuditEvent.resource_type == resource_type)
 
-    total = int(
-        await session.scalar(select(func.count(AuditEvent.id)).where(*conditions)) or 0
-    )
+    total = int(await session.scalar(select(func.count(AuditEvent.id)).where(*conditions)) or 0)
     rows = (
         await session.execute(
             select(AuditEvent)
@@ -47,5 +45,7 @@ async def list_audit_events(
     ).scalars()
     return Page(
         items=[AuditEventOut.model_validate(e) for e in rows],
-        total=total, limit=limit, offset=offset,
+        total=total,
+        limit=limit,
+        offset=offset,
     )

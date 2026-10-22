@@ -46,9 +46,7 @@ def embedded_database_url(data_dir: Path | None = None) -> str:
             "PostgreSQL 16 instance."
         ) from exc
 
-    directory = data_dir or Path(
-        os.environ.get("FORGE_PG_DATA_DIR", ".forge/pgdata")
-    ).resolve()
+    directory = data_dir or Path(os.environ.get("FORGE_PG_DATA_DIR", ".forge/pgdata")).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     if _embedded_server is None:
         _embedded_server = pgserver.get_server(directory)  # type: ignore[attr-defined]
@@ -68,8 +66,14 @@ def normalize_database_url(url: str) -> str:
     return url
 
 
-def create_engine(url: str, *, pool_size: int = 10, max_overflow: int = 10,
-                  statement_timeout_ms: int = 30_000, echo: bool = False) -> AsyncEngine:
+def create_engine(
+    url: str,
+    *,
+    pool_size: int = 10,
+    max_overflow: int = 10,
+    statement_timeout_ms: int = 30_000,
+    echo: bool = False,
+) -> AsyncEngine:
     dsn = normalize_database_url(url)
     connect_args: dict[str, Any] = {
         # A server-side statement timeout bounds any pathological query and is the

@@ -15,14 +15,16 @@ PLAN = CanaryPlan((10, 25, 50, 100), step_seconds=30)
 def healthy() -> HealthAssessment:
     return analyze(
         [HealthSample(NOW, requests=100, errors=0, latency_p95_ms=10.0)],
-        HealthThresholds(min_samples=20), now=NOW,
+        HealthThresholds(min_samples=20),
+        now=NOW,
     )
 
 
 def unhealthy() -> HealthAssessment:
     return analyze(
         [HealthSample(NOW, requests=100, errors=90, latency_p95_ms=10.0)],
-        HealthThresholds(min_samples=20), now=NOW,
+        HealthThresholds(min_samples=20),
+        now=NOW,
     )
 
 
@@ -90,31 +92,32 @@ class TestDecisions:
 
     def test_unknown_can_be_configured_to_hold_indefinitely(self) -> None:
         decision = decide(
-            PLAN, step_index=0, seconds_in_step=999, assessment=unknown(),
+            PLAN,
+            step_index=0,
+            seconds_in_step=999,
+            assessment=unknown(),
             abort_on_unknown_after_window=False,
         )
         assert decision.action is CanaryAction.HOLD
 
     def test_unknown_never_promotes(self) -> None:
         for seconds in (0, 15, 30, 1000):
-            decision = decide(
-                PLAN, step_index=3, seconds_in_step=seconds, assessment=unknown()
-            )
+            decision = decide(PLAN, step_index=3, seconds_in_step=seconds, assessment=unknown())
             assert decision.action is not CanaryAction.PROMOTE
 
     def test_full_healthy_progression_reaches_promote(self) -> None:
         index, actions = 0, []
         for _ in range(10):
-            decision = decide(
-                PLAN, step_index=index, seconds_in_step=30, assessment=healthy()
-            )
+            decision = decide(PLAN, step_index=index, seconds_in_step=30, assessment=healthy())
             actions.append(decision.action)
             if decision.action is CanaryAction.PROMOTE:
                 break
             index = decision.next_index
         assert actions == [
-            CanaryAction.ADVANCE, CanaryAction.ADVANCE,
-            CanaryAction.ADVANCE, CanaryAction.PROMOTE,
+            CanaryAction.ADVANCE,
+            CanaryAction.ADVANCE,
+            CanaryAction.ADVANCE,
+            CanaryAction.PROMOTE,
         ]
 
 

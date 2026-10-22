@@ -54,9 +54,7 @@ async def api(
     )
 
     monkeypatch.setattr(session_module, "_engine", engine, raising=False)
-    monkeypatch.setattr(
-        session_module, "_sessionmaker", sessionmaker_fixture, raising=False
-    )
+    monkeypatch.setattr(session_module, "_sessionmaker", sessionmaker_fixture, raising=False)
 
     settings = Settings(
         environment="test",
@@ -73,8 +71,17 @@ async def api(
     install_error_handlers(app)
     app.include_router(health.router)
     app.include_router(metrics.router)
-    for module in (auth, repositories, pipelines, deployments, environments,
-                   artifacts, audit, admin, webhooks):
+    for module in (
+        auth,
+        repositories,
+        pipelines,
+        deployments,
+        environments,
+        artifacts,
+        audit,
+        admin,
+        webhooks,
+    ):
         app.include_router(module.router, prefix=API_PREFIX)
 
     async with httpx.AsyncClient(
@@ -86,8 +93,12 @@ async def api(
 async def make_user(maker: Maker, email: str, role: Role) -> uuid.UUID:
     async with maker() as session, session.begin():
         user = User(
-            id=uuid.uuid4(), email=normalize_email(email), display_name=email,
-            password_hash=hash_password(PASSWORD), role=role.value, is_active=True,
+            id=uuid.uuid4(),
+            email=normalize_email(email),
+            display_name=email,
+            password_hash=hash_password(PASSWORD),
+            role=role.value,
+            is_active=True,
         )
         session.add(user)
         await session.flush()
@@ -95,17 +106,13 @@ async def make_user(maker: Maker, email: str, role: Role) -> uuid.UUID:
 
 
 async def login(client: httpx.AsyncClient, email: str) -> dict[str, str]:
-    response = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": PASSWORD}
-    )
+    response = await client.post("/api/v1/auth/login", json={"email": email, "password": PASSWORD})
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 class TestAuthentication:
-    async def test_protected_routes_require_authentication(
-        self, api: httpx.AsyncClient
-    ) -> None:
+    async def test_protected_routes_require_authentication(self, api: httpx.AsyncClient) -> None:
         for path in ("/api/v1/repositories", "/api/v1/overview", "/api/v1/audit"):
             response = await api.get(path)
             assert response.status_code == 401
@@ -182,9 +189,9 @@ class TestAuthentication:
             json={"email": "admin@example.com", "password": "wrong-password-x"},
         )
         headers = await login(api, "admin@example.com")
-        events = (await api.get(
-            "/api/v1/audit", headers=headers, params={"outcome": "FAILURE"}
-        )).json()
+        events = (
+            await api.get("/api/v1/audit", headers=headers, params={"outcome": "FAILURE"})
+        ).json()
         assert events["total"] >= 1
         assert events["items"][0]["action"] == "login"
 
@@ -216,8 +223,12 @@ class TestAuthorization:
         ],
     )
     async def test_viewer_is_denied_privileged_operations(
-        self, api: httpx.AsyncClient, sessionmaker_fixture: Maker,
-        method: str, path: str, payload: dict[str, Any] | None,
+        self,
+        api: httpx.AsyncClient,
+        sessionmaker_fixture: Maker,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None,
     ) -> None:
         await make_user(sessionmaker_fixture, "viewer@example.com", Role.VIEWER)
         headers = await login(api, "viewer@example.com")
@@ -238,7 +249,8 @@ class TestAuthorization:
         await make_user(sessionmaker_fixture, "dev@example.com", Role.DEVELOPER)
         headers = await login(api, "dev@example.com")
         response = await api.post(
-            "/api/v1/admin/users", headers=headers,
+            "/api/v1/admin/users",
+            headers=headers,
             json={"email": "x@example.com", "password": "a-password-123456"},
         )
         assert response.status_code == 403
@@ -249,9 +261,9 @@ class TestAuthorization:
         await make_user(sessionmaker_fixture, "admin@example.com", Role.ADMIN)
         headers = await login(api, "admin@example.com")
         response = await api.post(
-            "/api/v1/admin/users", headers=headers,
-            json={"email": "new@example.com", "password": "a-password-123456",
-                  "role": "DEVELOPER"},
+            "/api/v1/admin/users",
+            headers=headers,
+            json={"email": "new@example.com", "password": "a-password-123456", "role": "DEVELOPER"},
         )
         assert response.status_code == 201
 
@@ -261,9 +273,7 @@ class TestAuthorization:
         """Locking the last admin out of their own platform is not a useful outcome."""
         user_id = await make_user(sessionmaker_fixture, "admin@example.com", Role.ADMIN)
         headers = await login(api, "admin@example.com")
-        response = await api.post(
-            f"/api/v1/admin/users/{user_id}/deactivate", headers=headers
-        )
+        response = await api.post(f"/api/v1/admin/users/{user_id}/deactivate", headers=headers)
         assert response.status_code == 409
 
 
@@ -271,9 +281,12 @@ class TestRepositoryValidation:
     @pytest.mark.parametrize(
         "url",
         [
-            "http://github.com/a/b", "file:///etc/passwd", "https://127.0.0.1/x",
+            "http://github.com/a/b",
+            "file:///etc/passwd",
+            "https://127.0.0.1/x",
             "https://169.254.169.254/latest/meta-data/",
-            "https://user:pass@github.com/a/b", "https://10.0.0.1/x",
+            "https://user:pass@github.com/a/b",
+            "https://10.0.0.1/x",
             "ssh://git@github.com/a/b",
         ],
     )
@@ -282,9 +295,7 @@ class TestRepositoryValidation:
     ) -> None:
         await make_user(sessionmaker_fixture, "dev@example.com", Role.DEVELOPER)
         headers = await login(api, "dev@example.com")
-        response = await api.post(
-            "/api/v1/repositories", headers=headers, json={"url": url}
-        )
+        response = await api.post("/api/v1/repositories", headers=headers, json={"url": url})
         assert response.status_code == 422
         assert response.json()["error"]["code"] == "unsafe_url"
 
@@ -306,17 +317,18 @@ class TestRepositoryValidation:
         await make_user(sessionmaker_fixture, "admin@example.com", Role.ADMIN)
         headers = await login(api, "admin@example.com")
         created = await api.post(
-            "/api/v1/repositories", headers=headers,
+            "/api/v1/repositories",
+            headers=headers,
             json={"url": "https://github.com/psf/requests"},
         )
         repository_id = created.json()["id"]
-        assert (await api.delete(
-            f"/api/v1/repositories/{repository_id}", headers=headers
-        )).status_code == 204
+        assert (
+            await api.delete(f"/api/v1/repositories/{repository_id}", headers=headers)
+        ).status_code == 204
         # The row still exists (deactivated), so historical references resolve.
-        assert (await api.get(
-            f"/api/v1/repositories/{repository_id}", headers=headers
-        )).status_code == 200
+        assert (
+            await api.get(f"/api/v1/repositories/{repository_id}", headers=headers)
+        ).status_code == 200
         listed = await api.get("/api/v1/repositories", headers=headers)
         assert listed.json()["total"] == 0
 
@@ -324,25 +336,32 @@ class TestRepositoryValidation:
 class TestWebhooks:
     async def test_unsigned_delivery_is_rejected(self, api: httpx.AsyncClient) -> None:
         response = await api.post(
-            "/api/v1/webhooks/github", content=b"{}",
+            "/api/v1/webhooks/github",
+            content=b"{}",
             headers={"X-GitHub-Event": "ping", "X-GitHub-Delivery": "d1"},
         )
         assert response.status_code == 401
 
     async def test_bad_signature_is_rejected(self, api: httpx.AsyncClient) -> None:
         response = await api.post(
-            "/api/v1/webhooks/github", content=b"{}",
-            headers={"X-GitHub-Event": "ping", "X-GitHub-Delivery": "d1",
-                     "X-Hub-Signature-256": "sha256=deadbeef"},
+            "/api/v1/webhooks/github",
+            content=b"{}",
+            headers={
+                "X-GitHub-Event": "ping",
+                "X-GitHub-Delivery": "d1",
+                "X-Hub-Signature-256": "sha256=deadbeef",
+            },
         )
         assert response.status_code == 401
 
     async def test_valid_ping_is_acknowledged(self, api: httpx.AsyncClient) -> None:
         payload = b'{"zen": "Keep it logically awesome."}'
         response = await api.post(
-            "/api/v1/webhooks/github", content=payload,
+            "/api/v1/webhooks/github",
+            content=payload,
             headers={
-                "X-GitHub-Event": "ping", "X-GitHub-Delivery": "d-ping",
+                "X-GitHub-Event": "ping",
+                "X-GitHub-Delivery": "d-ping",
                 "X-Hub-Signature-256": compute_signature(payload, WEBHOOK_SECRET),
             },
         )
@@ -353,7 +372,8 @@ class TestWebhooks:
         """GitHub retries; a retry must never trigger a second build."""
         payload = b'{"zen": "x"}'
         headers = {
-            "X-GitHub-Event": "ping", "X-GitHub-Delivery": "d-dup",
+            "X-GitHub-Event": "ping",
+            "X-GitHub-Delivery": "d-dup",
             "X-Hub-Signature-256": compute_signature(payload, WEBHOOK_SECRET),
         }
         first = await api.post("/api/v1/webhooks/github", content=payload, headers=headers)
@@ -361,17 +381,17 @@ class TestWebhooks:
         assert first.json()["status"] == "pong"
         assert second.json()["status"] == "duplicate"
 
-    async def test_unregistered_repository_is_ignored(
-        self, api: httpx.AsyncClient
-    ) -> None:
+    async def test_unregistered_repository_is_ignored(self, api: httpx.AsyncClient) -> None:
         payload = (
             b'{"ref": "refs/heads/main", "repository": '
             b'{"clone_url": "https://github.com/unknown/repo.git"}}'
         )
         response = await api.post(
-            "/api/v1/webhooks/github", content=payload,
+            "/api/v1/webhooks/github",
+            content=payload,
             headers={
-                "X-GitHub-Event": "push", "X-GitHub-Delivery": "d-unknown",
+                "X-GitHub-Event": "push",
+                "X-GitHub-Delivery": "d-unknown",
                 "X-Hub-Signature-256": compute_signature(payload, WEBHOOK_SECRET),
             },
         )
@@ -382,14 +402,14 @@ class TestResponseHygiene:
     async def test_security_headers_are_present(self, api: httpx.AsyncClient) -> None:
         response = await api.get("/health")
         for header in (
-            "X-Content-Type-Options", "X-Frame-Options",
-            "Content-Security-Policy", "Referrer-Policy",
+            "X-Content-Type-Options",
+            "X-Frame-Options",
+            "Content-Security-Policy",
+            "Referrer-Policy",
         ):
             assert header in response.headers
 
-    async def test_every_response_carries_a_request_id(
-        self, api: httpx.AsyncClient
-    ) -> None:
+    async def test_every_response_carries_a_request_id(self, api: httpx.AsyncClient) -> None:
         assert (await api.get("/health")).headers.get("X-Request-ID")
 
     async def test_errors_do_not_leak_internals(

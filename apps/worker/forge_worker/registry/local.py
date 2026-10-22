@@ -42,9 +42,7 @@ class LocalContentAddressedRegistry:
     def blob_path(self, digest: str) -> Path:
         return self._blobs / self._hex(digest)
 
-    async def publish(
-        self, result: BuildResult, *, image_name: str, version: str
-    ) -> PublishResult:
+    async def publish(self, result: BuildResult, *, image_name: str, version: str) -> PublishResult:
         await self.available()
         destination = self.blob_path(result.digest)
 
@@ -70,9 +68,7 @@ class LocalContentAddressedRegistry:
             "metadata": dict(result.metadata),
         }
         index_file = self._index / f"{self._hex(result.digest)}.json"
-        await asyncio.to_thread(
-            index_file.write_text, json.dumps(metadata, indent=2), "utf-8"
-        )
+        await asyncio.to_thread(index_file.write_text, json.dumps(metadata, indent=2), "utf-8")
 
         return PublishResult(
             reference=reference,

@@ -116,16 +116,16 @@ class TestBuildAndRollout:
 
     def test_probe_paths_must_be_absolute(self) -> None:
         with pytest.raises(ValidationError):
-            parse_manifest(
-                b'version = 1\n[service]\nname = "demo"\nhealth_path = "health"\n'
-            )
+            parse_manifest(b'version = 1\n[service]\nname = "demo"\nhealth_path = "health"\n')
 
 
 def test_all_checks_orders_lint_before_tests() -> None:
-    manifest = PipelineManifest.model_validate({
-        "version": 1,
-        "service": {"name": "demo"},
-        "lint": [{"name": "ruff", "run": ["ruff", "check", "."]}],
-        "test": [{"name": "unit", "run": ["pytest"]}],
-    })
+    manifest = PipelineManifest.model_validate(
+        {
+            "version": 1,
+            "service": {"name": "demo"},
+            "lint": [{"name": "ruff", "run": ["ruff", "check", "."]}],
+            "test": [{"name": "unit", "run": ["pytest"]}],
+        }
+    )
     assert [c.name for c in manifest.all_checks] == ["ruff", "unit"]

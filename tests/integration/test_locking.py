@@ -34,17 +34,13 @@ class TestMutualExclusion:
         with pytest.raises(LockAcquisitionError, match="already in progress"):
             await _acquire(sessionmaker_fixture, "worker-b")
 
-    async def test_refusal_names_the_current_holder(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_refusal_names_the_current_holder(self, sessionmaker_fixture: Maker) -> None:
         await _acquire(sessionmaker_fixture, "worker-a")
         with pytest.raises(LockAcquisitionError) as caught:
             await _acquire(sessionmaker_fixture, "worker-b")
         assert caught.value.details["held_by"] == "worker-a"
 
-    async def test_exactly_one_winner_under_contention(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_exactly_one_winner_under_contention(self, sessionmaker_fixture: Maker) -> None:
         async def contend(index: int) -> bool:
             try:
                 await _acquire(sessionmaker_fixture, f"worker-{index}", ttl=60)
@@ -64,9 +60,7 @@ class TestMutualExclusion:
         second = await _acquire(sessionmaker_fixture, "worker-a")
         assert second.token > first.token
 
-    async def test_different_resources_do_not_contend(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_different_resources_do_not_contend(self, sessionmaker_fixture: Maker) -> None:
         maker = sessionmaker_fixture
         async with maker() as session, session.begin():
             await locking.acquire(session, "deploy:a:dev", "w1")
@@ -75,9 +69,7 @@ class TestMutualExclusion:
 
 
 class TestExpiryAndFencing:
-    async def test_expired_lock_can_be_taken_over(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_expired_lock_can_be_taken_over(self, sessionmaker_fixture: Maker) -> None:
         await _acquire(sessionmaker_fixture, "dead-worker")
         await _expire(sessionmaker_fixture)
         taken = await _acquire(sessionmaker_fixture, "live-worker")
@@ -103,9 +95,7 @@ class TestExpiryAndFencing:
             with pytest.raises(FencedError):
                 await locking.renew(session, stale)
 
-    async def test_token_increases_monotonically(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_token_increases_monotonically(self, sessionmaker_fixture: Maker) -> None:
         tokens = []
         for index in range(4):
             await _expire(sessionmaker_fixture)
@@ -119,9 +109,7 @@ class TestExpiryAndFencing:
             renewed = await locking.renew(session, lock, ttl_seconds=600)
         assert renewed.expires_at > lock.expires_at
 
-    async def test_assert_held_passes_for_the_real_owner(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_assert_held_passes_for_the_real_owner(self, sessionmaker_fixture: Maker) -> None:
         lock = await _acquire(sessionmaker_fixture, "worker-a")
         async with sessionmaker_fixture() as session:
             await locking.assert_held(session, lock)
@@ -133,9 +121,7 @@ class TestRelease:
         async with sessionmaker_fixture() as session, session.begin():
             assert await locking.release(session, lock)
 
-    async def test_non_owner_cannot_release(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_non_owner_cannot_release(self, sessionmaker_fixture: Maker) -> None:
         """Releasing someone else's lock would reintroduce the race it prevents."""
         stale = await _acquire(sessionmaker_fixture, "worker-a")
         await _expire(sessionmaker_fixture)

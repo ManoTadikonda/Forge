@@ -45,9 +45,7 @@ async def github_webhook(
     x_github_delivery: Annotated[str, Header()] = "",
 ) -> dict[str, Any]:
     settings = request.app.state.settings
-    await enforce_rate_limit(
-        request, "webhook", limit=settings.rate_limit_webhook_per_minute
-    )
+    await enforce_rate_limit(request, "webhook", limit=settings.rate_limit_webhook_per_minute)
 
     raw = await request.body()
     secret = settings.github_webhook_secret.get_secret_value()
@@ -56,7 +54,8 @@ async def github_webhook(
         verify_signature(raw, x_hub_signature_256, secret)
     except AuthenticationError:
         logger.warning(
-            "webhook_signature_rejected", github_event=x_github_event,
+            "webhook_signature_rejected",
+            github_event=x_github_event,
             delivery=x_github_delivery[:64],
         )
         # Deliberately unspecific: a sender must not learn whether the secret is
@@ -82,8 +81,11 @@ async def github_webhook(
         }
 
     record = WebhookDelivery(
-        id=uuid.uuid4(), delivery_id=delivery_id, event=x_github_event,
-        signature_valid=True, payload_digest=payload_digest,
+        id=uuid.uuid4(),
+        delivery_id=delivery_id,
+        event=x_github_event,
+        signature_valid=True,
+        payload_digest=payload_digest,
         created_at=datetime.now(UTC),
     )
     session.add(record)
@@ -92,8 +94,11 @@ async def github_webhook(
     except IntegrityError:
         # Lost a race with a concurrent redelivery; the other one owns it.
         await session.rollback()
-        return {"status": "duplicate", "delivery_id": delivery_id,
-                "detail": "Concurrent redelivery was already recorded."}
+        return {
+            "status": "duplicate",
+            "delivery_id": delivery_id,
+            "detail": "Concurrent redelivery was already recorded.",
+        }
 
     try:
         body = json.loads(raw.decode("utf-8"))
@@ -153,8 +158,11 @@ async def github_webhook(
         branch = ((body.get("pull_request") or {}).get("head") or {}).get("ref", "")
 
     run, created = await create_pipeline_run(
-        session, repository=repository, branch=branch or repository.default_branch,
-        trigger=f"webhook:{x_github_event}", triggered_by_id=None,
+        session,
+        repository=repository,
+        branch=branch or repository.default_branch,
+        trigger=f"webhook:{x_github_event}",
+        triggered_by_id=None,
         # The delivery id makes the trigger idempotent even if dedup is bypassed.
         idempotency_key=f"delivery:{delivery_id}",
     )
@@ -165,8 +173,12 @@ async def github_webhook(
     # retry, so the run and its job must be durable before we say so.
     await commit(session)
     logger.info(
-        "webhook_processed", delivery=delivery_id, github_event=x_github_event,
-        repository=repository.slug, pipeline_id=str(run.id), created=created,
+        "webhook_processed",
+        delivery=delivery_id,
+        github_event=x_github_event,
+        repository=repository.slug,
+        pipeline_id=str(run.id),
+        created=created,
     )
     return {
         "status": "accepted",

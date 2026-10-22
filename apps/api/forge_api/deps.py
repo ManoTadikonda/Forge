@@ -88,9 +88,7 @@ def _extract_token(request: Request) -> tuple[str, bool]:
     return cookie, bool(cookie)
 
 
-async def current_user(
-    request: Request, session: DbSession, settings: AppSettings
-) -> CurrentUser:
+async def current_user(request: Request, session: DbSession, settings: AppSettings) -> CurrentUser:
     """Resolve the caller, verifying the token *and* the server-side session row."""
     token, from_cookie = _extract_token(request)
     if not token:
@@ -110,15 +108,9 @@ async def current_user(
 
     # CSRF: only cookie-authenticated unsafe requests need the double-submit token.
     # Bearer callers are not subject to ambient-credential attacks.
-    if (
-        from_cookie
-        and settings.csrf_protection_enabled
-        and request.method in UNSAFE_METHODS
-    ):
+    if from_cookie and settings.csrf_protection_enabled and request.method in UNSAFE_METHODS:
         supplied = request.headers.get(CSRF_HEADER, "")
-        if not supplied or not row.csrf_token or not constant_time_equals(
-            supplied, row.csrf_token
-        ):
+        if not supplied or not row.csrf_token or not constant_time_equals(supplied, row.csrf_token):
             raise AuthenticationError(
                 "A valid CSRF token is required for cookie-authenticated writes."
             )
@@ -160,9 +152,7 @@ async def enforce_rate_limit(
     if limiter is None or not settings.rate_limit_enabled:
         return
     client = request.client.host if request.client else "unknown"
-    decision = await limiter.check(
-        f"{key}:{client}", limit=limit, window_seconds=window_seconds
-    )
+    decision = await limiter.check(f"{key}:{client}", limit=limit, window_seconds=window_seconds)
     if not decision.allowed:
         raise RateLimitedError(
             "Too many requests. Retry after the window resets.",

@@ -44,9 +44,7 @@ async def list_environments(
     session: DbSession,
     user: Annotated[CurrentUserDep, Depends(require(Permission.DEPLOYMENT_READ))],
 ) -> list[EnvironmentOut]:
-    rows = (
-        await session.execute(select(Environment).order_by(Environment.name))
-    ).scalars()
+    rows = (await session.execute(select(Environment).order_by(Environment.name))).scalars()
     return [EnvironmentOut.model_validate(e) for e in rows]
 
 
@@ -74,7 +72,8 @@ async def list_services(
 
 
 @router.get(
-    "/services/{service_id}/health", response_model=ServiceHealthOut,
+    "/services/{service_id}/health",
+    response_model=ServiceHealthOut,
     summary="Live service health",
 )
 async def service_health(
@@ -111,8 +110,10 @@ async def service_health(
         async with httpx.AsyncClient(timeout=3.0) as client:
             response = await client.get(
                 "http://127.0.0.1:8099/stats",
-                params={"service": service.name,
-                        "environment": environment.name if environment else ""},
+                params={
+                    "service": service.name,
+                    "environment": environment.name if environment else "",
+                },
             )
             if response.status_code == 200:
                 weights = dict(response.json().get("weights", {}))
@@ -152,20 +153,25 @@ async def overview(
     Every number is computed from the database. When nothing has run, the response is
     genuinely empty and the UI renders an empty state rather than invented history.
     """
+
     async def count(model: Any, *conditions: Any) -> int:
-        return int(
-            await session.scalar(select(func.count(model.id)).where(*conditions)) or 0
-        )
+        return int(await session.scalar(select(func.count(model.id)).where(*conditions)) or 0)
 
     active_pipeline_states = [
-        PipelineState.QUEUED.value, PipelineState.CLONING.value,
-        PipelineState.VALIDATING.value, PipelineState.TESTING.value,
-        PipelineState.BUILDING.value, PipelineState.PUBLISHING.value,
+        PipelineState.QUEUED.value,
+        PipelineState.CLONING.value,
+        PipelineState.VALIDATING.value,
+        PipelineState.TESTING.value,
+        PipelineState.BUILDING.value,
+        PipelineState.PUBLISHING.value,
     ]
     active_deployment_states = [
-        DeploymentState.PENDING.value, DeploymentState.PREPARING.value,
-        DeploymentState.DEPLOYING.value, DeploymentState.VERIFYING.value,
-        DeploymentState.CANARY.value, DeploymentState.PROMOTING.value,
+        DeploymentState.PENDING.value,
+        DeploymentState.PREPARING.value,
+        DeploymentState.DEPLOYING.value,
+        DeploymentState.VERIFYING.value,
+        DeploymentState.CANARY.value,
+        DeploymentState.PROMOTING.value,
         DeploymentState.ROLLING_BACK.value,
     ]
 
@@ -178,9 +184,7 @@ async def overview(
         pipelines_total=await count(PipelineRun),
         pipelines_succeeded=succeeded,
         pipelines_failed=failed,
-        pipelines_running=await count(
-            PipelineRun, PipelineRun.state.in_(active_pipeline_states)
-        ),
+        pipelines_running=await count(PipelineRun, PipelineRun.state.in_(active_pipeline_states)),
         # None, not 0, when nothing has finished: "no data" and "0% success" are
         # different statements and the UI must not conflate them.
         pipeline_success_rate=(succeeded / finished) if finished else None,
@@ -190,33 +194,27 @@ async def overview(
         ),
         deployments_rolled_back=await count(
             Deployment,
-            Deployment.state.in_([
-                DeploymentState.ROLLED_BACK.value,
-                DeploymentState.ROLLBACK_FAILED.value,
-            ]),
+            Deployment.state.in_(
+                [
+                    DeploymentState.ROLLED_BACK.value,
+                    DeploymentState.ROLLBACK_FAILED.value,
+                ]
+            ),
         ),
-        deployments_active=await count(
-            Deployment, Deployment.state.in_(active_deployment_states)
-        ),
+        deployments_active=await count(Deployment, Deployment.state.in_(active_deployment_states)),
         artifacts=await count(Artifact),
         open_incidents=await count(Incident, Incident.resolved_at.is_(None)),
         queue_depth=await queue.queue_depth(session),
     )
 
     recent_pipelines = (
-        await session.execute(
-            select(PipelineRun).order_by(PipelineRun.created_at.desc()).limit(8)
-        )
+        await session.execute(select(PipelineRun).order_by(PipelineRun.created_at.desc()).limit(8))
     ).scalars()
     recent_deployments = (
-        await session.execute(
-            select(Deployment).order_by(Deployment.created_at.desc()).limit(8)
-        )
+        await session.execute(select(Deployment).order_by(Deployment.created_at.desc()).limit(8))
     ).scalars()
     recent_incidents = (
-        await session.execute(
-            select(Incident).order_by(Incident.created_at.desc()).limit(5)
-        )
+        await session.execute(select(Incident).order_by(Incident.created_at.desc()).limit(5))
     ).scalars()
 
     return OverviewOut(
@@ -234,8 +232,6 @@ async def list_incidents(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[IncidentOut]:
     rows = (
-        await session.execute(
-            select(Incident).order_by(Incident.created_at.desc()).limit(limit)
-        )
+        await session.execute(select(Incident).order_by(Incident.created_at.desc()).limit(limit))
     ).scalars()
     return [IncidentOut.model_validate(i) for i in rows]

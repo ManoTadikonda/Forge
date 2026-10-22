@@ -125,8 +125,7 @@ async def root() -> dict[str, Any]:
         "release_id": CONFIG.release_id,
         "description": "Sample application built and deployed by Forge.",
         "faulty": CONFIG.is_faulty,
-        "endpoints": ["/health", "/ready", "/version", "/api/work", "/api/stats",
-                      "/metrics"],
+        "endpoints": ["/health", "/ready", "/version", "/api/work", "/api/stats", "/metrics"],
     }
 
 
@@ -135,8 +134,11 @@ async def health() -> Response:
     """Liveness. Reports failure only when explicitly configured to."""
     if CONFIG.unhealthy:
         return JSONResponse(
-            {"status": "unhealthy", "version": CONFIG.version,
-             "reason": "SAMPLE_UNHEALTHY is set for this release."},
+            {
+                "status": "unhealthy",
+                "version": CONFIG.version,
+                "reason": "SAMPLE_UNHEALTHY is set for this release.",
+            },
             status_code=503,
         )
     return JSONResponse({"status": "healthy", "version": CONFIG.version})
@@ -148,19 +150,20 @@ async def ready() -> Response:
     uptime = time.monotonic() - _STARTED_AT
     if CONFIG.unhealthy:
         return JSONResponse(
-            {"status": "not-ready", "version": CONFIG.version,
-             "reason": "SAMPLE_UNHEALTHY is set for this release."},
+            {
+                "status": "not-ready",
+                "version": CONFIG.version,
+                "reason": "SAMPLE_UNHEALTHY is set for this release.",
+            },
             status_code=503,
         )
     if uptime < CONFIG.startup_delay_seconds:
         return JSONResponse(
-            {"status": "starting", "version": CONFIG.version,
-             "uptime_seconds": round(uptime, 3)},
+            {"status": "starting", "version": CONFIG.version, "uptime_seconds": round(uptime, 3)},
             status_code=503,
         )
     return JSONResponse(
-        {"status": "ready", "version": CONFIG.version,
-         "uptime_seconds": round(uptime, 3)}
+        {"status": "ready", "version": CONFIG.version, "uptime_seconds": round(uptime, 3)}
     )
 
 
@@ -196,9 +199,12 @@ async def work() -> Response:
         period = max(1, round(1.0 / CONFIG.error_rate))
         if index % period == 0:
             return JSONResponse(
-                {"error": "internal_error", "version": CONFIG.version,
-                 "request_index": index,
-                 "detail": "Injected failure (SAMPLE_ERROR_RATE is set)."},
+                {
+                    "error": "internal_error",
+                    "version": CONFIG.version,
+                    "request_index": index,
+                    "detail": "Injected failure (SAMPLE_ERROR_RATE is set).",
+                },
                 status_code=500,
             )
 

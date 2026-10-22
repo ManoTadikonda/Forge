@@ -1,0 +1,35 @@
+# Development environment. Copy to dev.tfvars and fill in.
+# Real .tfvars files are gitignored: they frequently hold account-specific values.
+
+environment = "dev"
+region      = "eu-west-1"
+project     = "forge"
+
+# Images MUST be pinned by digest. A mutable tag makes a deployment
+# irreproducible, which is the opposite of what Forge exists to provide.
+api_image    = "000000000000.dkr.ecr.eu-west-1.amazonaws.com/forge/api@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+router_image = "000000000000.dkr.ecr.eu-west-1.amazonaws.com/forge/router@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+api_desired_count    = 1
+worker_desired_count = 1
+api_cpu              = 512
+api_memory           = 1024
+
+database_instance_class        = "db.t4g.micro"
+database_allocated_storage     = 20
+database_backup_retention_days = 1
+
+# Restrict to the networks that actually need access. An empty list means the
+# load balancer accepts nothing, which is the safe default.
+allowed_ingress_cidrs = []
+
+# Without a certificate only an HTTP listener is created. Acceptable for a
+# scratch environment, not for anything carrying real credentials.
+certificate_arn = ""
+
+log_retention_days = 7
+
+tags = {
+  Owner      = "platform-team"
+  CostCenter = "engineering"
+}

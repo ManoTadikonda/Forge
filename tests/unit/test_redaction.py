@@ -54,8 +54,17 @@ def test_jwt_is_masked_entirely() -> None:
 
 
 @pytest.mark.parametrize(
-    "key", ["password", "API_KEY", "db_password", "Authorization", "webhook_secret",
-            "DATABASE_URL", "session_token", "private_key"],
+    "key",
+    [
+        "password",
+        "API_KEY",
+        "db_password",
+        "Authorization",
+        "webhook_secret",
+        "DATABASE_URL",
+        "session_token",
+        "private_key",
+    ],
 )
 def test_sensitive_keys_are_recognised(key: str) -> None:
     assert is_sensitive_key(key)

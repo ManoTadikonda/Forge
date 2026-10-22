@@ -77,15 +77,15 @@ class PipelineRunner:
                 run.started_at = now
             if reason:
                 run.failure_reason = reason[:4000]
-            if target in (
-                PipelineState.SUCCEEDED, PipelineState.FAILED, PipelineState.CANCELED
-            ):
+            if target in (PipelineState.SUCCEEDED, PipelineState.FAILED, PipelineState.CANCELED):
                 run.finished_at = now
                 if run.started_at is not None:
                     run.duration_ms = int((now - run.started_at).total_seconds() * 1000)
             logger.info(
-                "pipeline_transition", pipeline_id=str(run_id),
-                from_state=source.value, to_state=target.value,
+                "pipeline_transition",
+                pipeline_id=str(run_id),
+                from_state=source.value,
+                to_state=target.value,
             )
 
     async def _stage_start(self, run_id: uuid.UUID, name: StageName) -> uuid.UUID:
@@ -99,7 +99,9 @@ class PipelineRunner:
             ).scalar_one_or_none()
             if stage is None:  # pragma: no cover - stages are pre-created
                 stage = PipelineStage(
-                    id=uuid.uuid4(), run_id=run_id, name=name.value,
+                    id=uuid.uuid4(),
+                    run_id=run_id,
+                    name=name.value,
                     sequence=STAGE_SEQUENCE.index(name),
                 )
                 session.add(stage)
@@ -151,15 +153,16 @@ class PipelineRunner:
                 stage.message = reason[:4000]
                 stage.finished_at = now
                 if stage.started_at is not None:
-                    stage.duration_ms = int(
-                        (now - stage.started_at).total_seconds() * 1000
-                    )
+                    stage.duration_ms = int((now - stage.started_at).total_seconds() * 1000)
 
     async def _log(self, run_id: uuid.UUID, stage: StageName, content: str) -> None:
         async with self._sessionmaker() as session, session.begin():
             await append_log(
-                session, owner_type="pipeline", owner_id=run_id,
-                stage=stage.value, content=content,
+                session,
+                owner_type="pipeline",
+                owner_id=run_id,
+                stage=stage.value,
+                content=content,
                 max_total_bytes=self._settings.build_max_log_bytes,
             )
 
@@ -179,32 +182,26 @@ class PipelineRunner:
             if run is None:
                 raise ValidationError(f"Pipeline run {run_id} not found.")
             if PipelineState(run.state) in (
-                PipelineState.SUCCEEDED, PipelineState.FAILED, PipelineState.CANCELED
+                PipelineState.SUCCEEDED,
+                PipelineState.FAILED,
+                PipelineState.CANCELED,
             ):
                 return PipelineState(run.state)  # idempotent redelivery
             repository = (
-                await session.get(Repository, run.repository_id)
-                if run.repository_id
-                else None
+                await session.get(Repository, run.repository_id) if run.repository_id else None
             )
             if repository is None:
-                raise ValidationError(
-                    "Pipeline run references a repository that no longer exists."
-                )
+                raise ValidationError("Pipeline run references a repository that no longer exists.")
             repo_url, branch = repository.url, run.branch or repository.default_branch
             allow_local = bool((repository.description or "").startswith("[demo]"))
 
         workspace = Path(self._settings.workspace_root) / str(run_id)
         try:
             shutil.rmtree(workspace, ignore_errors=True)
-            return await self._execute(
-                run_id, repo_url, branch, workspace, allow_local=allow_local
-            )
+            return await self._execute(run_id, repo_url, branch, workspace, allow_local=allow_local)
         except PipelineCancelled as cancelled:
             await self._fail_open_stages(run_id, "Cancelled by an operator.")
-            await self._transition(
-                run_id, PipelineState.CANCELED, reason=str(cancelled)
-            )
+            await self._transition(run_id, PipelineState.CANCELED, reason=str(cancelled))
             return PipelineState.CANCELED
         except (ValidationError, BuildError) as known:
             await self._fail_open_stages(run_id, known.message)
@@ -223,8 +220,13 @@ class PipelineRunner:
             shutil.rmtree(workspace, ignore_errors=True)
 
     async def _execute(
-        self, run_id: uuid.UUID, repo_url: str, branch: str, workspace: Path,
-        *, allow_local: bool,
+        self,
+        run_id: uuid.UUID,
+        repo_url: str,
+        branch: str,
+        workspace: Path,
+        *,
+        allow_local: bool,
     ) -> PipelineState:
         # ------------------------------------------------------------ CLONING
         await self._transition(run_id, PipelineState.CLONING)
@@ -233,11 +235,13 @@ class PipelineRunner:
             repo_url, workspace, branch=branch, allow_local=allow_local
         )
         await self._stage_finish(
-            stage_id, StageStatus.SUCCEEDED,
+            stage_id,
+            StageStatus.SUCCEEDED,
             message=f"Checked out {result.commit_sha[:12]} on {branch}.",
         )
         await self._log(
-            run_id, StageName.CLONE,
+            run_id,
+            StageName.CLONE,
             f"Cloned {repo_url} @ {branch}\nCommit {result.commit_sha}\n"
             f"Author {result.commit_author}\n{result.commit_message}\n",
         )
@@ -258,12 +262,14 @@ class PipelineRunner:
             if run is not None:
                 run.manifest = manifest.model_dump(mode="json")
         await self._stage_finish(
-            stage_id, StageStatus.SUCCEEDED,
+            stage_id,
+            StageStatus.SUCCEEDED,
             message=f"Manifest valid: service {manifest.service.name}, "
-                    f"{len(manifest.all_checks)} check(s).",
+            f"{len(manifest.all_checks)} check(s).",
         )
         await self._log(
-            run_id, StageName.VALIDATE,
+            run_id,
+            StageName.VALIDATE,
             "Manifest accepted.\n"
             + "\n".join(f"  {c.name}: {c.display}" for c in manifest.all_checks)
             + "\n",
@@ -292,9 +298,9 @@ class PipelineRunner:
             )
         )
         await self._stage_finish(
-            stage_id, StageStatus.SUCCEEDED,
-            message=f"Built {build_result.digest[:19]}… "
-                    f"({build_result.size_bytes} bytes).",
+            stage_id,
+            StageStatus.SUCCEEDED,
+            message=f"Built {build_result.digest[:19]}… ({build_result.size_bytes} bytes).",
         )
         await self._log(run_id, StageName.BUILD, build_result.logs)
         await self._check_cancelled(run_id)
@@ -302,8 +308,11 @@ class PipelineRunner:
         # --------------------------------------------------------------- SBOM
         stage_id = await self._stage_start(run_id, StageName.SBOM)
         document = generate_sbom(
-            workspace, image_name=manifest.service.name, version=version,
-            digest=build_result.digest, repository_url=repo_url,
+            workspace,
+            image_name=manifest.service.name,
+            version=version,
+            digest=build_result.digest,
+            repository_url=repo_url,
             commit_sha=result.commit_sha,
         )
         sbom_dir = Path(self._settings.artifact_root) / "sbom"
@@ -312,7 +321,8 @@ class PipelineRunner:
         )
         component_count = len(document["components"])
         await self._stage_finish(
-            stage_id, StageStatus.SUCCEEDED,
+            stage_id,
+            StageStatus.SUCCEEDED,
             message=f"CycloneDX 1.5 SBOM with {component_count} component(s).",
         )
 
@@ -334,16 +344,27 @@ class PipelineRunner:
             build_result, image_name=manifest.service.name, version=version
         )
         await self._record_artifact(
-            run_id, build_result, published, manifest, version,
-            repo_url, result.commit_sha, sbom_path, component_count,
-            scan_status, scan_reason, scan_summary,
+            run_id,
+            build_result,
+            published,
+            manifest,
+            version,
+            repo_url,
+            result.commit_sha,
+            sbom_path,
+            component_count,
+            scan_status,
+            scan_reason,
+            scan_summary,
         )
         await self._stage_finish(
-            stage_id, StageStatus.SUCCEEDED,
+            stage_id,
+            StageStatus.SUCCEEDED,
             message=f"Published {published.reference}.",
         )
         await self._log(
-            run_id, StageName.PUBLISH,
+            run_id,
+            StageName.PUBLISH,
             f"Published to {published.registry}: {published.reference}\n"
             f"Digest: {published.digest}\n"
             f"Signed: {published.signed} "
@@ -362,7 +383,8 @@ class PipelineRunner:
         checks = manifest.all_checks
         if not checks:
             await self._stage_finish(
-                stage_id, StageStatus.SKIPPED,
+                stage_id,
+                StageStatus.SKIPPED,
                 skip_reason="The manifest declares no lint or test commands.",
             )
             return
@@ -381,14 +403,10 @@ class PipelineRunner:
             await self._check_cancelled(run_id)
             # Resolution happens off the event loop; the containment check below is
             # what prevents a manifest from running commands outside the workspace.
-            cwd = await asyncio.to_thread(
-                (workspace / check.working_directory).resolve
-            )
+            cwd = await asyncio.to_thread((workspace / check.working_directory).resolve)
             workspace_root = await asyncio.to_thread(workspace.resolve)
             if not str(cwd).startswith(str(workspace_root)):
-                raise ValidationError(
-                    f"Check {check.name!r} escapes the workspace directory."
-                )
+                raise ValidationError(f"Check {check.name!r} escapes the workspace directory.")
             outcome = await run_command(
                 check.run,
                 cwd=cwd,
@@ -413,18 +431,18 @@ class PipelineRunner:
                     failures.append(detail)
                 else:
                     await self._log(
-                        run_id, StageName.TEST,
+                        run_id,
+                        StageName.TEST,
                         f"[forge] {detail} — not required, continuing.\n",
                     )
 
         if failures:
-            await self._stage_finish(
-                stage_id, StageStatus.FAILED, message="; ".join(failures)
-            )
+            await self._stage_finish(stage_id, StageStatus.FAILED, message="; ".join(failures))
             raise BuildError("Required checks failed: " + "; ".join(failures))
 
         await self._stage_finish(
-            stage_id, StageStatus.SUCCEEDED,
+            stage_id,
+            StageStatus.SUCCEEDED,
             message=f"{len(checks)} check(s) passed.",
         )
 
@@ -439,9 +457,7 @@ class PipelineRunner:
             ("grype", ["grype", "dir:.", "-o", "json"]),
             ("pip-audit", ["pip-audit", "--format", "json", "--progress-spinner", "off"]),
         ):
-            if resolve_executable(
-                binary, toolchain=self._settings.build_toolchain_path
-            ) is None:
+            if resolve_executable(binary, toolchain=self._settings.build_toolchain_path) is None:
                 continue
             outcome = await run_command(
                 argv,
@@ -462,9 +478,7 @@ class PipelineRunner:
             {},
         )
 
-    async def _resolve_version(
-        self, run_id: uuid.UUID, workspace: Path
-    ) -> str:
+    async def _resolve_version(self, run_id: uuid.UUID, workspace: Path) -> str:
         """Determine the version being built.
 
         The version belongs to the source, not to the CI system, so it is read from
@@ -494,16 +508,23 @@ class PipelineRunner:
         return f"0.0.0+run{number}"
 
     async def _record_artifact(
-        self, run_id: uuid.UUID, build_result: Any, published: Any,
-        manifest: PipelineManifest, version: str, repo_url: str, commit_sha: str,
-        sbom_path: Path, component_count: int,
-        scan_status: str, scan_reason: str, scan_summary: dict[str, Any],
+        self,
+        run_id: uuid.UUID,
+        build_result: Any,
+        published: Any,
+        manifest: PipelineManifest,
+        version: str,
+        repo_url: str,
+        commit_sha: str,
+        sbom_path: Path,
+        component_count: int,
+        scan_status: str,
+        scan_reason: str,
+        scan_summary: dict[str, Any],
     ) -> None:
         async with self._sessionmaker() as session, session.begin():
             existing = (
-                await session.execute(
-                    select(Artifact).where(Artifact.digest == published.digest)
-                )
+                await session.execute(select(Artifact).where(Artifact.digest == published.digest))
             ).scalar_one_or_none()
             if existing is not None:
                 # Same content: the artifact is immutable, so reuse it and just link
@@ -523,12 +544,8 @@ class PipelineRunner:
                     repository_url=repo_url,
                     commit_sha=commit_sha,
                     builder=getattr(self._builder, "name", "unknown"),
-                    build_started_at=_parse_iso(
-                        build_result.metadata.get("build_started_at")
-                    ),
-                    build_finished_at=_parse_iso(
-                        build_result.metadata.get("build_finished_at")
-                    ),
+                    build_started_at=_parse_iso(build_result.metadata.get("build_started_at")),
+                    build_finished_at=_parse_iso(build_result.metadata.get("build_finished_at")),
                     provenance={
                         "repository_url": repo_url,
                         "commit_sha": commit_sha,

@@ -1,0 +1,170 @@
+# Container-based local stack.
+#
+# STATUS: this file has NOT been executed. The environment Forge was developed in
+# has no container runtime, so the container path is written against the documented
+# behaviour of these images but is unverified. The verified way to run Forge locally
+# is `scripts/run_stack.sh start`, which needs no container runtime.
+# See docs/deployment.md and docs/adr/0001-environment-constrained-adapters.md.
+#
+#   docker compose -f infra/compose/docker-compose.yml --env-file deploy/.env up -d
+name: forge
+
+x-api-env: &api-env
+  FORGE_ENVIRONMENT: ${FORGE_ENVIRONMENT:-development}
+  FORGE_DATABASE_URL: postgresql+asyncpg://forge:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/forge
+  FORGE_REDIS_URL: redis://redis:6379/0
+  FORGE_SECRET_KEY: ${FORGE_SECRET_KEY:?set FORGE_SECRET_KEY}
+  FORGE_GITHUB_WEBHOOK_SECRET: ${FORGE_GITHUB_WEBHOOK_SECRET:-}
+  FORGE_ROUTER_ADMIN_URL: http://router:8099
+  FORGE_ROUTER_PUBLIC_HOST: router
+  FORGE_LOG_FORMAT: json
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: forge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: forge
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forge -d forge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    # Not published to the host: only Forge's own services need to reach it.
+    expose: ["5432"]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    expose: ["6379"]
+
+  # Isolated build daemon. The build worker talks to this over its own address and
+  # never receives the host's container socket, so repository code cannot reach the
+  # host daemon. See docs/security.md.
+  buildkit:
+    image: moby/buildkit:v0.17.2-rootless
+    privileged: true
+    environment:
+      BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+    volumes:
+      - buildkit-cache:/home/user/.local/share/buildkit
+    restart: unless-stopped
+    expose: ["1234"]
+    command: ["--addr", "tcp://0.0.0.0:1234"]
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.api
+    environment: *api-env
+    command: ["python", "-m", "alembic", "-c", "packages/forge-core/alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.api
+    environment:
+      <<: *api-env
+      FORGE_CORS_ALLOW_ORIGINS: ${FORGE_CORS_ALLOW_ORIGINS:-http://localhost:5173}
+    command:
+      - python
+      - -m
+      - uvicorn
+      - forge_api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.api
+    environment:
+      <<: *api-env
+      FORGE_BUILDER: buildkit
+      BUILDKIT_HOST: tcp://buildkit:1234
+      FORGE_DEPLOY_ADAPTER: docker
+    command: ["python", "-m", "forge_worker.runtime"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+      buildkit: { condition: service_started }
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - forge-workspaces:/var/lib/forge
+      # The worker needs a container runtime to start releases via the Docker
+      # deployment adapter. This grants host-equivalent privilege and is the
+      # single most dangerous line in this file — see docs/security.md. Use
+      # FORGE_DEPLOY_ADAPTER=process if you do not want it.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  router:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.router
+    environment:
+      FORGE_ROUTER_HOST: 0.0.0.0
+      FORGE_ROUTER_PORT: "8098"
+      FORGE_ROUTER_ADMIN_PORT: "8099"
+    # Only the public proxy port is published. The admin API, which mutates
+    # traffic weights, stays on the internal network.
+    ports: ["8098:8098"]
+    expose: ["8099"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8099/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.web
+      args:
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8000}
+    ports: ["5173:80"]
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  postgres-data:
+  buildkit-cache:
+  forge-workspaces:

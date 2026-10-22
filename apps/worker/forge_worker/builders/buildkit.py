@@ -38,8 +38,11 @@ class BuildKitBuilder:
                 f"use FORGE_BUILDER=process for local development."
             )
         process = await asyncio.create_subprocess_exec(
-            self._binary, "buildx", "version",
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            self._binary,
+            "buildx",
+            "version",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
         stdout, _ = await process.communicate()
         if process.returncode != 0:
@@ -58,13 +61,19 @@ class BuildKitBuilder:
         tag = f"{request.image_name}:{request.version}"
 
         argv = [
-            self._binary, "buildx", "build",
-            "--file", str(workspace / request.dockerfile),
-            "--tag", tag,
-            "--metadata-file", str(metadata_file),
+            self._binary,
+            "buildx",
+            "build",
+            "--file",
+            str(workspace / request.dockerfile),
+            "--tag",
+            tag,
+            "--metadata-file",
+            str(metadata_file),
             # Load into the local image store so the deployment adapter can run it.
             "--load",
-            "--progress", "plain",
+            "--progress",
+            "plain",
         ]
         for key, value in request.build_args.items():
             argv += ["--build-arg", f"{key}={value}"]
@@ -75,8 +84,11 @@ class BuildKitBuilder:
             env["BUILDKIT_HOST"] = self._buildkit_host
 
         process = await asyncio.create_subprocess_exec(
-            *argv, cwd=str(workspace), env=env,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            *argv,
+            cwd=str(workspace),
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
         )
         try:
             stdout, _ = await asyncio.wait_for(
@@ -84,9 +96,7 @@ class BuildKitBuilder:
             )
         except TimeoutError as exc:
             process.kill()
-            raise BuildError(
-                f"Image build exceeded {request.timeout_seconds}s."
-            ) from exc
+            raise BuildError(f"Image build exceeded {request.timeout_seconds}s.") from exc
 
         logs = stdout.decode("utf-8", "replace")
         if process.returncode != 0:

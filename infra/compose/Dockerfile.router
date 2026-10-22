@@ -1,0 +1,19 @@
+# Image for the weighted routing proxy.
+#
+# STATUS: not built or run — the development environment has no container runtime.
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+COPY apps/router ./apps/router
+RUN pip install --no-cache-dir ./apps/router
+
+RUN groupadd --gid 10001 forge \
+ && useradd --uid 10001 --gid forge --no-create-home --shell /usr/sbin/nologin forge
+USER forge
+
+EXPOSE 8098 8099
+CMD ["python", "-m", "forge_router.app"]

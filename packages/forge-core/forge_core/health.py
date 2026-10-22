@@ -131,7 +131,12 @@ def analyze(
             HealthVerdict.UNHEALTHY,
             f"{len(unhealthy_probe)} of {len(fresh)} probes reported the release "
             f"as not healthy/ready.",
-            requests, errors, error_rate, p50, p95, p99,
+            requests,
+            errors,
+            error_rate,
+            p50,
+            p95,
+            p99,
             ("probe_failed",),
         )
 
@@ -140,7 +145,12 @@ def analyze(
             HealthVerdict.UNKNOWN,
             f"Insufficient traffic to judge: {requests} requests observed, "
             f"{thresholds.min_samples} required.",
-            requests, errors, error_rate, p50, p95, p99,
+            requests,
+            errors,
+            error_rate,
+            p50,
+            p95,
+            p99,
         )
 
     breaches: list[str] = []
@@ -149,14 +159,12 @@ def analyze(
     if error_rate > thresholds.max_error_rate:
         breaches.append("error_rate")
         reasons.append(
-            f"error rate {error_rate:.2%} exceeds ceiling "
-            f"{thresholds.max_error_rate:.2%}"
+            f"error rate {error_rate:.2%} exceeds ceiling {thresholds.max_error_rate:.2%}"
         )
     if p95 is not None and p95 > thresholds.max_p95_latency_ms:
         breaches.append("latency_p95")
         reasons.append(
-            f"p95 latency {p95:.0f}ms exceeds ceiling "
-            f"{thresholds.max_p95_latency_ms:.0f}ms"
+            f"p95 latency {p95:.0f}ms exceeds ceiling {thresholds.max_p95_latency_ms:.0f}ms"
         )
 
     if baseline is not None and baseline.requests >= thresholds.min_samples:
@@ -174,15 +182,19 @@ def analyze(
         if error_rate - baseline.error_rate > thresholds.max_error_rate_regression:
             breaches.append("error_rate_regression")
             reasons.append(
-                f"error rate {error_rate:.2%} regressed against stable "
-                f"({baseline.error_rate:.2%})"
+                f"error rate {error_rate:.2%} regressed against stable ({baseline.error_rate:.2%})"
             )
 
     if breaches:
         return HealthAssessment(
             HealthVerdict.UNHEALTHY,
             "Health thresholds breached: " + "; ".join(reasons) + ".",
-            requests, errors, error_rate, p50, p95, p99,
+            requests,
+            errors,
+            error_rate,
+            p50,
+            p95,
+            p99,
             tuple(dict.fromkeys(breaches)),
         )
 
@@ -191,7 +203,12 @@ def analyze(
         f"{requests} requests observed, error rate {error_rate:.2%}"
         + (f", p95 {p95:.0f}ms" if p95 is not None else "")
         + " — within thresholds.",
-        requests, errors, error_rate, p50, p95, p99,
+        requests,
+        errors,
+        error_rate,
+        p50,
+        p95,
+        p99,
     )
 
 

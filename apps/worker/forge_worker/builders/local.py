@@ -23,9 +23,23 @@ from forge_core.ports import BuildRequest, BuildResult
 #: Directories never included in an artifact: caches, VCS metadata, local state.
 _EXCLUDED_DIRECTORIES = frozenset(
     {
-        ".git", ".hg", ".svn", "__pycache__", ".pytest_cache", ".mypy_cache",
-        ".ruff_cache", "node_modules", ".venv", "venv", ".tox", ".forge",
-        ".idea", ".vscode", "dist", "build", ".eggs",
+        ".git",
+        ".hg",
+        ".svn",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "node_modules",
+        ".venv",
+        "venv",
+        ".tox",
+        ".forge",
+        ".idea",
+        ".vscode",
+        "dist",
+        "build",
+        ".eggs",
     }
 )
 _EXCLUDED_SUFFIXES = (".pyc", ".pyo", ".so", ".log", ".tmp")

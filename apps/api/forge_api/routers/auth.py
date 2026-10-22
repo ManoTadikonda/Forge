@@ -43,24 +43,25 @@ async def login(
     session: DbSession,
     settings: AppSettings,
 ) -> TokenResponse:
-    await enforce_rate_limit(
-        request, "login", limit=settings.rate_limit_login_per_minute
-    )
+    await enforce_rate_limit(request, "login", limit=settings.rate_limit_login_per_minute)
     email = normalize_email(payload.email)
     client_ip = request.client.host if request.client else ""
     user_agent = request.headers.get("user-agent", "")[:256]
 
-    user = (
-        await session.execute(select(User).where(User.email == email))
-    ).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.email == email))).scalar_one_or_none()
 
     now = datetime.now(UTC)
     if user is not None and user.locked_until and user.locked_until > now:
         await record_audit(
-            session, action="login", actor_label=email, outcome="DENIED",
-            resource_type="user", resource_id=str(user.id),
+            session,
+            action="login",
+            actor_label=email,
+            outcome="DENIED",
+            resource_type="user",
+            resource_id=str(user.id),
             detail={"reason": "account_locked"},
-            ip_address=client_ip, user_agent=user_agent,
+            ip_address=client_ip,
+            user_agent=user_agent,
             request_id=getattr(request.state, "request_id", ""),
         )
         # Commit before raising: the request-scoped session rolls back on an
@@ -82,10 +83,15 @@ async def login(
                 user.locked_until = now + timedelta(minutes=LOCKOUT_MINUTES)
                 logger.warning("account_locked", user_id=str(user.id))
         await record_audit(
-            session, action="login", actor_label=email, outcome="FAILURE",
-            resource_type="user", resource_id=str(user.id) if user else "",
+            session,
+            action="login",
+            actor_label=email,
+            outcome="FAILURE",
+            resource_type="user",
+            resource_id=str(user.id) if user else "",
             detail={"reason": "invalid_credentials"},
-            ip_address=client_ip, user_agent=user_agent,
+            ip_address=client_ip,
+            user_agent=user_agent,
             request_id=getattr(request.state, "request_id", ""),
         )
         # Commit the failure bookkeeping before raising. The request-scoped session
@@ -113,40 +119,53 @@ async def login(
     )
     session.add(
         SessionRow(
-            id=uuid.uuid4(), user_id=user.id, jti=claims.jti,
-            expires_at=claims.expires_at, csrf_token=csrf_token,
-            user_agent=user_agent, ip_address=client_ip,
+            id=uuid.uuid4(),
+            user_id=user.id,
+            jti=claims.jti,
+            expires_at=claims.expires_at,
+            csrf_token=csrf_token,
+            user_agent=user_agent,
+            ip_address=client_ip,
         )
     )
     await record_audit(
-        session, action="login", actor_id=user.id, actor_label=user.email,
-        outcome="SUCCESS", resource_type="user", resource_id=str(user.id),
-        ip_address=client_ip, user_agent=user_agent,
+        session,
+        action="login",
+        actor_id=user.id,
+        actor_label=user.email,
+        outcome="SUCCESS",
+        resource_type="user",
+        resource_id=str(user.id),
+        ip_address=client_ip,
+        user_agent=user_agent,
         request_id=getattr(request.state, "request_id", ""),
     )
 
     secure = not settings.is_development
     response.set_cookie(
-        SESSION_COOKIE, token,
+        SESSION_COOKIE,
+        token,
         max_age=settings.access_token_ttl_seconds,
-        httponly=True,       # not readable by JavaScript
-        secure=secure,       # HTTPS-only outside development
-        samesite="lax",      # blocks cross-site form posts
+        httponly=True,  # not readable by JavaScript
+        secure=secure,  # HTTPS-only outside development
+        samesite="lax",  # blocks cross-site form posts
         path="/",
     )
     # The CSRF cookie is deliberately readable by the SPA so it can echo the value
     # in a header: that is the double-submit pattern.
     response.set_cookie(
-        CSRF_COOKIE, csrf_token,
+        CSRF_COOKIE,
+        csrf_token,
         max_age=settings.access_token_ttl_seconds,
-        httponly=False, secure=secure, samesite="lax", path="/",
+        httponly=False,
+        secure=secure,
+        samesite="lax",
+        path="/",
     )
     # Commit before returning: the client will immediately authenticate with this
     # token, and the session row must already be visible to that next request.
     await commit(session)
-    return TokenResponse(
-        access_token=token, expires_at=claims.expires_at, csrf_token=csrf_token
-    )
+    return TokenResponse(access_token=token, expires_at=claims.expires_at, csrf_token=csrf_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="End session")
@@ -160,8 +179,12 @@ async def logout(
     if row is not None and row.revoked_at is None:
         row.revoked_at = datetime.now(UTC)
     await record_audit(
-        session, action="logout", actor_id=user.id, actor_label=user.email,
-        resource_type="session", resource_id=str(user.session_id),
+        session,
+        action="logout",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="session",
+        resource_id=str(user.session_id),
         request_id=getattr(request.state, "request_id", ""),
     )
     await commit(session)
@@ -176,8 +199,12 @@ async def me(session: DbSession, user: CurrentUserDep) -> CurrentUserOut:
     if row is None:  # pragma: no cover - resolved user always exists
         raise AuthenticationError("This account is no longer available.")
     return CurrentUserOut(
-        id=row.id, email=row.email, display_name=row.display_name, role=row.role,
-        is_active=row.is_active, last_login_at=row.last_login_at,
+        id=row.id,
+        email=row.email,
+        display_name=row.display_name,
+        role=row.role,
+        is_active=row.is_active,
+        last_login_at=row.last_login_at,
         created_at=row.created_at,
         permissions=sorted(str(p) for p in user.permissions),
     )

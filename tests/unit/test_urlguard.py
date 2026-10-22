@@ -17,9 +17,15 @@ class TestSchemeAndFormat:
     @pytest.mark.parametrize(
         "url",
         [
-            "http://github.com/a/b", "file:///etc/passwd", "ftp://host/x",
-            "gopher://host/x", "git://github.com/a/b", "ssh://git@github.com/a/b",
-            "git@github.com:a/b.git", "javascript:alert(1)", "",
+            "http://github.com/a/b",
+            "file:///etc/passwd",
+            "ftp://host/x",
+            "gopher://host/x",
+            "git://github.com/a/b",
+            "ssh://git@github.com/a/b",
+            "git@github.com:a/b.git",
+            "javascript:alert(1)",
+            "",
         ],
     )
     def test_non_https_schemes_are_rejected(self, url: str) -> None:
@@ -61,11 +67,18 @@ class TestBlockedDestinations:
     @pytest.mark.parametrize(
         "url",
         [
-            "https://127.0.0.1/x", "https://127.1.2.3/x", "https://0.0.0.0/x",
-            "https://10.0.0.1/x", "https://172.16.0.1/x", "https://192.168.1.1/x",
+            "https://127.0.0.1/x",
+            "https://127.1.2.3/x",
+            "https://0.0.0.0/x",
+            "https://10.0.0.1/x",
+            "https://172.16.0.1/x",
+            "https://192.168.1.1/x",
             "https://169.254.169.254/latest/meta-data/",
-            "https://100.64.0.1/x", "https://[::1]/x", "https://[fc00::1]/x",
-            "https://[fe80::1]/x", "https://224.0.0.1/x",
+            "https://100.64.0.1/x",
+            "https://[::1]/x",
+            "https://[fc00::1]/x",
+            "https://[fe80::1]/x",
+            "https://224.0.0.1/x",
         ],
     )
     def test_literal_addresses_in_blocked_ranges_are_rejected(self, url: str) -> None:
@@ -74,8 +87,12 @@ class TestBlockedDestinations:
 
     @pytest.mark.parametrize(
         "url",
-        ["https://localhost/x", "https://metadata.google.internal/x",
-         "https://foo.localhost/x", "https://printer.local/x"],
+        [
+            "https://localhost/x",
+            "https://metadata.google.internal/x",
+            "https://foo.localhost/x",
+            "https://printer.local/x",
+        ],
     )
     def test_blocked_hostnames_are_rejected(self, url: str) -> None:
         with pytest.raises(UnsafeUrlError):
@@ -103,9 +120,7 @@ class TestResolvedAddressChecking:
     def test_any_blocked_address_in_the_set_rejects(self) -> None:
         """A hostname resolving to both public and private addresses is unsafe."""
         with pytest.raises(UnsafeUrlError):
-            assert_resolved_addresses_allowed(
-                ("140.82.121.3", "127.0.0.1"), "mixed.example.com"
-            )
+            assert_resolved_addresses_allowed(("140.82.121.3", "127.0.0.1"), "mixed.example.com")
 
     def test_all_public_addresses_pass(self) -> None:
         assert_resolved_addresses_allowed(("140.82.121.3", "140.82.121.4"), "github.com")
@@ -119,13 +134,15 @@ class TestHostAllowlist:
     def test_host_outside_allowlist_is_rejected(self) -> None:
         with pytest.raises(UnsafeUrlError, match="allowlist"):
             validate_repo_url(
-                "https://evil.com/a/b", resolve=False,
+                "https://evil.com/a/b",
+                resolve=False,
                 allowed_hosts=frozenset({"github.com"}),
             )
 
     def test_host_inside_allowlist_is_accepted(self) -> None:
         result = validate_repo_url(
-            "https://github.com/a/b", resolve=False,
+            "https://github.com/a/b",
+            resolve=False,
             allowed_hosts=frozenset({"github.com"}),
         )
         assert result.host == "github.com"

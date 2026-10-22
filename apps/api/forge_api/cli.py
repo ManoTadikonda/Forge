@@ -77,8 +77,11 @@ def build_demo_repository(root: Path, source: Path, *, version: str = "1.0.0") -
     for item in ("sample_service", "tests", "pyproject.toml", "Dockerfile", "forge.toml"):
         src = source / item
         if src.is_dir():
-            shutil.copytree(src, work / item, ignore=shutil.ignore_patterns(
-                "__pycache__", "*.pyc", ".pytest_cache"))
+            shutil.copytree(
+                src,
+                work / item,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache"),
+            )
         elif src.is_file():
             shutil.copyfile(src, work / item)
 
@@ -140,9 +143,7 @@ async def cmd_seed_demo(args: argparse.Namespace) -> int:
         source = Path(args.source).resolve()
         root.mkdir(parents=True, exist_ok=True)
         if not (source / "sample_service").is_dir():
-            raise FileNotFoundError(
-                f"{source} does not look like the sample service directory"
-            )
+            raise FileNotFoundError(f"{source} does not look like the sample service directory")
         return build_demo_repository(root, source, version=args.version)
 
     try:
@@ -158,9 +159,7 @@ async def cmd_seed_demo(args: argparse.Namespace) -> int:
         await ensure_environments(session)
         existing = (
             await session.execute(
-                select(Repository).where(
-                    Repository.slug == "local/demo/sample-service"
-                )
+                select(Repository).where(Repository.slug == "local/demo/sample-service")
             )
         ).scalar_one_or_none()
         if existing is not None:
@@ -176,8 +175,7 @@ async def cmd_seed_demo(args: argparse.Namespace) -> int:
                 slug="local/demo/sample-service",
                 default_branch="main",
                 description=(
-                    DEMO_MARKER
-                    + "Bundled sample service used by the Forge rollback demo. "
+                    DEMO_MARKER + "Bundled sample service used by the Forge rollback demo. "
                     "Registered from a local path by the operator seed command; the "
                     "HTTP API does not accept local URLs."
                 ),
@@ -187,12 +185,17 @@ async def cmd_seed_demo(args: argparse.Namespace) -> int:
             repository_id = repository.id
             action = "created"
 
-    print(json.dumps({
-        "status": action,
-        "repository_id": str(repository_id),
-        "url": url,
-        "version": args.version,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": action,
+                "repository_id": str(repository_id),
+                "url": url,
+                "version": args.version,
+            },
+            indent=2,
+        )
+    )
     await dispose_engine()
     return 0
 
@@ -206,9 +209,7 @@ async def cmd_set_demo_version(args: argparse.Namespace) -> int:
     def _commit() -> bool:
         """Returns True when a new commit was made, False when nothing changed."""
         if not (work / ".git").is_dir():
-            raise FileNotFoundError(
-                "demo repository not found; run 'seed-demo' first"
-            )
+            raise FileNotFoundError("demo repository not found; run 'seed-demo' first")
         _set_version(work, args.version)
         _git("add", "-A", cwd=work)
         try:
@@ -227,10 +228,15 @@ async def cmd_set_demo_version(args: argparse.Namespace) -> int:
     except (FileNotFoundError, subprocess.CalledProcessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(json.dumps({
-        "status": "committed" if committed else "unchanged",
-        "version": args.version,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "committed" if committed else "unchanged",
+                "version": args.version,
+            },
+            indent=2,
+        )
+    )
     await dispose_engine()
     return 0
 
@@ -252,9 +258,12 @@ async def cmd_create_user(args: argparse.Namespace) -> int:
             return 1
         session.add(
             User(
-                id=uuid.uuid4(), email=email,
+                id=uuid.uuid4(),
+                email=email,
                 display_name=args.display_name or email.split("@")[0],
-                password_hash=password_hash, role=Role(args.role).value, is_active=True,
+                password_hash=password_hash,
+                role=Role(args.role).value,
+                is_active=True,
             )
         )
     print(json.dumps({"status": "created", "email": email, "role": args.role}, indent=2))
@@ -272,18 +281,32 @@ async def cmd_reset_runtime(args: argparse.Namespace) -> int:
     async with maker() as session, session.begin():
         # Order matters: children before parents.
         for table in (
-            "health_samples", "deployment_events", "incidents", "releases",
-            "deployments", "log_chunks", "pipeline_stages", "artifacts",
-            "pipeline_runs", "jobs", "deployment_locks", "webhook_deliveries",
+            "health_samples",
+            "deployment_events",
+            "incidents",
+            "releases",
+            "deployments",
+            "log_chunks",
+            "pipeline_stages",
+            "artifacts",
+            "pipeline_runs",
+            "jobs",
+            "deployment_locks",
+            "webhook_deliveries",
         ):
             await session.execute(text(f"DELETE FROM {table}"))  # noqa: S608
         await session.execute(text("UPDATE services SET current_artifact_id = NULL"))
         await session.execute(text("DELETE FROM services"))
-    print(json.dumps({
-        "status": "runtime_reset",
-        "preserved": ["users", "repositories", "environments", "audit_events"],
-        "at": datetime.now(UTC).isoformat(),
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "runtime_reset",
+                "preserved": ["users", "repositories", "environments", "audit_events"],
+                "at": datetime.now(UTC).isoformat(),
+            },
+            indent=2,
+        )
+    )
     await dispose_engine()
     return 0
 
@@ -305,8 +328,7 @@ def build_parser() -> argparse.ArgumentParser:
     user.add_argument("--email", required=True)
     user.add_argument("--password", default="")
     user.add_argument("--display-name", default="")
-    user.add_argument("--role", default="DEVELOPER",
-                      choices=[r.value for r in Role])
+    user.add_argument("--role", default="DEVELOPER", choices=[r.value for r in Role])
     user.set_defaults(func=cmd_create_user)
 
     reset = sub.add_parser(

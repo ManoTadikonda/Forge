@@ -112,8 +112,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=list(resolved.cors_allow_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-CSRF-Token",
-                       REQUEST_ID_HEADER, "X-Correlation-ID"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-CSRF-Token",
+            REQUEST_ID_HEADER,
+            "X-Correlation-ID",
+        ],
         expose_headers=[REQUEST_ID_HEADER],
         max_age=600,
     )
@@ -124,8 +129,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(metrics.router)
     for module in (
-        auth, repositories, pipelines, deployments, environments,
-        artifacts, audit, admin, webhooks,
+        auth,
+        repositories,
+        pipelines,
+        deployments,
+        environments,
+        artifacts,
+        audit,
+        admin,
+        webhooks,
     ):
         app.include_router(module.router, prefix=API_PREFIX)
 

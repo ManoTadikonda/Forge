@@ -24,10 +24,34 @@ MANIFEST_FILENAMES: tuple[str, ...] = ("forge.toml", ".forge.toml", "forge.json"
 #: at validation time. Extend deliberately; every entry widens the build's reach.
 ALLOWED_EXECUTABLES: frozenset[str] = frozenset(
     {
-        "python", "python3", "python3.12", "pytest", "ruff", "mypy", "pip",
-        "node", "npm", "npx", "yarn", "pnpm", "tsc", "eslint", "vitest", "jest",
-        "make", "bash", "sh", "echo", "true", "false",
-        "go", "cargo", "rustc", "java", "mvn", "gradle",
+        "python",
+        "python3",
+        "python3.12",
+        "pytest",
+        "ruff",
+        "mypy",
+        "pip",
+        "node",
+        "npm",
+        "npx",
+        "yarn",
+        "pnpm",
+        "tsc",
+        "eslint",
+        "vitest",
+        "jest",
+        "make",
+        "bash",
+        "sh",
+        "echo",
+        "true",
+        "false",
+        "go",
+        "cargo",
+        "rustc",
+        "java",
+        "mvn",
+        "gradle",
     }
 )
 
@@ -55,9 +79,7 @@ class CommandStep(BaseModel):
             raise ValueError("run must contain at least an executable")
         executable = value[0]
         if "/" in executable or "\\" in executable:
-            raise ValueError(
-                f"Executable must be a bare name, not a path: {executable!r}"
-            )
+            raise ValueError(f"Executable must be a bare name, not a path: {executable!r}")
         if executable not in ALLOWED_EXECUTABLES:
             raise ValueError(
                 f"Executable {executable!r} is not permitted. Allowed: "
@@ -75,8 +97,10 @@ class CommandStep(BaseModel):
     def _check_workdir(cls, value: str) -> str:
         path = value.strip() or "."
         if path.startswith("/") or ".." in Path(path).parts:
-            raise ValueError("working_directory must be a relative path inside the "
-                             "workspace and must not traverse upwards")
+            raise ValueError(
+                "working_directory must be a relative path inside the "
+                "workspace and must not traverse upwards"
+            )
         return path
 
     @property
@@ -178,13 +202,10 @@ def parse_manifest(raw: str | bytes, *, filename: str = "forge.toml") -> Pipelin
     data: Any
     text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
     try:
-        data = (
-            json.loads(text) if filename.endswith(".json") else tomllib.loads(text)
-        )
+        data = json.loads(text) if filename.endswith(".json") else tomllib.loads(text)
     except (tomllib.TOMLDecodeError, json.JSONDecodeError) as exc:
         raise ValidationError(
-            f"{filename} is not valid {'JSON' if filename.endswith('.json') else 'TOML'}: "
-            f"{exc}"
+            f"{filename} is not valid {'JSON' if filename.endswith('.json') else 'TOML'}: {exc}"
         ) from exc
 
     if not isinstance(data, dict):
@@ -193,9 +214,7 @@ def parse_manifest(raw: str | bytes, *, filename: str = "forge.toml") -> Pipelin
     try:
         return PipelineManifest.model_validate(data)
     except Exception as exc:  # pydantic ValidationError
-        raise ValidationError(
-            f"{filename} failed schema validation: {exc}"
-        ) from exc
+        raise ValidationError(f"{filename} failed schema validation: {exc}") from exc
 
 
 def find_manifest(workspace: Path) -> Path | None:
@@ -210,8 +229,7 @@ def load_manifest(workspace: Path) -> PipelineManifest:
     path = find_manifest(workspace)
     if path is None:
         raise ValidationError(
-            "No pipeline manifest found. Expected one of: "
-            + ", ".join(MANIFEST_FILENAMES)
+            "No pipeline manifest found. Expected one of: " + ", ".join(MANIFEST_FILENAMES)
         )
     return parse_manifest(path.read_text(encoding="utf-8"), filename=path.name)
 

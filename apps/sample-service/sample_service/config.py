@@ -53,11 +53,8 @@ class SampleConfig:
             tail_latency_ms=max(0.0, _float_env("SAMPLE_TAIL_LATENCY_MS", 0.0)),
             tail_fraction=min(1.0, max(0.0, _float_env("SAMPLE_TAIL_FRACTION", 0.0))),
             error_rate=min(1.0, max(0.0, _float_env("SAMPLE_ERROR_RATE", 0.0))),
-            unhealthy=os.environ.get("SAMPLE_UNHEALTHY", "").lower()
-            in ("1", "true", "yes"),
-            startup_delay_seconds=max(
-                0.0, _float_env("SAMPLE_STARTUP_DELAY_SECONDS", 0.0)
-            ),
+            unhealthy=os.environ.get("SAMPLE_UNHEALTHY", "").lower() in ("1", "true", "yes"),
+            startup_delay_seconds=max(0.0, _float_env("SAMPLE_STARTUP_DELAY_SECONDS", 0.0)),
         )
 
     @property

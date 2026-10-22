@@ -129,12 +129,16 @@ class Worker:
             try:
                 async with self._sessionmaker() as session, session.begin():
                     alive = await queue.heartbeat(
-                        session, job, worker_id=self.name,
+                        session,
+                        job,
+                        worker_id=self.name,
                         lease_seconds=self._settings.job_lease_seconds,
                     )
                 if not alive:
                     logger.warning(
-                        "lease_lost", worker=self.name, job_id=str(job.id),
+                        "lease_lost",
+                        worker=self.name,
+                        job_id=str(job.id),
                     )
                     return
             except Exception:
@@ -152,8 +156,11 @@ class Worker:
                     return
 
             logger.info(
-                "job_started", job_id=str(job.id), kind=str(job.kind),
-                attempt=job.attempts, max_attempts=job.max_attempts,
+                "job_started",
+                job_id=str(job.id),
+                kind=str(job.kind),
+                attempt=job.attempts,
+                max_attempts=job.max_attempts,
             )
             await self._dispatch(job)
 
@@ -169,7 +176,10 @@ class Worker:
             # The target resource is busy. Retry later rather than failing.
             async with self._sessionmaker() as session, session.begin():
                 await queue.fail(
-                    session, job, error=busy.message, retryable=True,
+                    session,
+                    job,
+                    error=busy.message,
+                    retryable=True,
                     backoff_base=self._settings.job_backoff_base_seconds,
                     backoff_cap=self._settings.job_backoff_max_seconds,
                 )
@@ -179,12 +189,17 @@ class Worker:
             logger.exception("job_failed", job_id=str(job.id))
             async with self._sessionmaker() as session, session.begin():
                 state = await queue.fail(
-                    session, job, error=error, retryable=True,
+                    session,
+                    job,
+                    error=error,
+                    retryable=True,
                     backoff_base=self._settings.job_backoff_base_seconds,
                     backoff_cap=self._settings.job_backoff_max_seconds,
                 )
             logger.info(
-                "job_outcome_recorded", job_id=str(job.id), state=str(state),
+                "job_outcome_recorded",
+                job_id=str(job.id),
+                state=str(state),
             )
         finally:
             heartbeat.cancel()
@@ -277,12 +292,17 @@ class WorkerPool:
         registry = build_registry(self._settings)
 
         for component, label in (
-            (builder, "builder"), (registry, "registry"), (self._adapter, "adapter"),
+            (builder, "builder"),
+            (registry, "registry"),
+            (self._adapter, "adapter"),
         ):
             usable, reason = await component.available()
             logger.info(
-                "component_probe", component=label, name=component.name,
-                usable=usable, detail=reason,
+                "component_probe",
+                component=label,
+                name=component.name,
+                usable=usable,
+                detail=reason,
             )
             if not usable and label == "builder":
                 logger.error("builder_unusable", detail=reason)
@@ -300,11 +320,13 @@ class WorkerPool:
             for index in range(self._settings.worker_concurrency)
         ]
         sweeper = RecoverySweeper(
-            sessionmaker=self._sessionmaker, settings=self._settings,
+            sessionmaker=self._sessionmaker,
+            settings=self._settings,
             stop_event=self._stop,
         )
         logger.info(
-            "worker_pool_started", concurrency=self._settings.worker_concurrency,
+            "worker_pool_started",
+            concurrency=self._settings.worker_concurrency,
             prefix=self._prefix,
         )
         await asyncio.gather(*(w.run() for w in workers), sweeper.run())
@@ -322,9 +344,7 @@ async def main() -> None:  # pragma: no cover - process entry point
     from forge_core.logging import configure_logging
 
     settings = get_settings()
-    configure_logging(
-        level=settings.log_level, fmt=settings.log_format, service="forge-worker"
-    )
+    configure_logging(level=settings.log_level, fmt=settings.log_format, service="forge-worker")
     url = settings.database_url or embedded_database_url()
     init_engine(
         url,

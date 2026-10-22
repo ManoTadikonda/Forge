@@ -43,9 +43,7 @@ async def get_settings_view(
         health_max_error_rate=settings.health_max_error_rate,
         health_max_p95_latency_ms=settings.health_max_p95_latency_ms,
         rate_limit_enabled=settings.rate_limit_enabled,
-        webhook_secret_configured=bool(
-            settings.github_webhook_secret.get_secret_value()
-        ),
+        webhook_secret_configured=bool(settings.github_webhook_secret.get_secret_value()),
         redis_configured=bool(settings.redis_url),
         rate_limiter_backend=limiter.name if limiter else "disabled",
         router_admin_url=settings.router_admin_url,
@@ -63,7 +61,9 @@ async def list_users(
 
 
 @router.post(
-    "/users", response_model=UserOut, status_code=status.HTTP_201_CREATED,
+    "/users",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
     summary="Create a user",
 )
 async def create_user(
@@ -95,8 +95,12 @@ async def create_user(
     session.add(created)
     await session.flush()
     await record_audit(
-        session, action="user.create", actor_id=user.id, actor_label=user.email,
-        resource_type="user", resource_id=str(created.id),
+        session,
+        action="user.create",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="user",
+        resource_id=str(created.id),
         detail={"email": email, "role": created.role},
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
@@ -105,9 +109,7 @@ async def create_user(
     return UserOut.model_validate(created)
 
 
-@router.post(
-    "/users/{user_id}/deactivate", response_model=UserOut, summary="Deactivate a user"
-)
+@router.post("/users/{user_id}/deactivate", response_model=UserOut, summary="Deactivate a user")
 async def deactivate_user(
     user_id: uuid.UUID,
     request: Request,
@@ -123,8 +125,12 @@ async def deactivate_user(
 
     target.is_active = False
     await record_audit(
-        session, action="user.deactivate", actor_id=user.id, actor_label=user.email,
-        resource_type="user", resource_id=str(user_id),
+        session,
+        action="user.deactivate",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="user",
+        resource_id=str(user_id),
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )

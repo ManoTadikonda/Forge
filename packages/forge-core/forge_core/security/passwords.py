@@ -24,14 +24,10 @@ class PasswordPolicyError(ValueError):
 
 def validate_password_policy(password: str) -> None:
     if len(password) < MIN_PASSWORD_LENGTH:
-        raise PasswordPolicyError(
-            f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
-        )
+        raise PasswordPolicyError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters.")
     if len(password) > MAX_PASSWORD_LENGTH:
         # Bound the input so hashing cost cannot be used as a DoS vector.
-        raise PasswordPolicyError(
-            f"Password must be at most {MAX_PASSWORD_LENGTH} characters."
-        )
+        raise PasswordPolicyError(f"Password must be at most {MAX_PASSWORD_LENGTH} characters.")
     if password.strip() == "":
         raise PasswordPolicyError("Password must not be entirely whitespace.")
 

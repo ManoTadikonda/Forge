@@ -38,7 +38,12 @@ ENVIRONMENT = "development"
 WORK_URL = f"{ROUTER}/{SERVICE}/{ENVIRONMENT}/api/work"
 
 BOLD, DIM, GREEN, RED, YELLOW, RESET = (
-    "\033[1m", "\033[2m", "\033[32m", "\033[31m", "\033[33m", "\033[0m"
+    "\033[1m",
+    "\033[2m",
+    "\033[32m",
+    "\033[31m",
+    "\033[33m",
+    "\033[0m",
 )
 
 
@@ -126,8 +131,7 @@ class Forge:
             if repo["slug"] == "local/demo/sample-service":
                 return repo
         raise DemoError(
-            "The demo repository is not registered. Run:\n"
-            "    python -m forge_api.cli seed-demo"
+            "The demo repository is not registered. Run:\n    python -m forge_api.cli seed-demo"
         )
 
     def run_pipeline(self, repository_id: str, *, timeout: int = 300) -> dict[str, Any]:
@@ -144,7 +148,11 @@ class Forge:
         created = self.post("/api/v1/deployments", payload)
         deadline = time.time() + timeout
         terminal = {
-            "SUCCEEDED", "FAILED", "CANCELED", "ROLLED_BACK", "ROLLBACK_FAILED",
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELED",
+            "ROLLED_BACK",
+            "ROLLBACK_FAILED",
         }
         seen = -1
         while time.time() < deadline:
@@ -162,9 +170,12 @@ class Forge:
 def _print_event(event: dict[str, Any]) -> None:
     kind = event["kind"]
     colour = (
-        RED if "rollback" in kind or kind == "deployment_failed"
-        else GREEN if kind in ("promoted", "candidate_verified")
-        else YELLOW if kind in ("canary_step", "health_evaluated")
+        RED
+        if "rollback" in kind or kind == "deployment_failed"
+        else GREEN
+        if kind in ("promoted", "candidate_verified")
+        else YELLOW
+        if kind in ("canary_step", "health_evaluated")
         else ""
     )
     print(f"    {colour}{kind:22}{RESET} {event['message'][:92]}")
@@ -200,9 +211,9 @@ def router_weights() -> dict[str, int]:
 
 def set_demo_version(version: str) -> None:
     subprocess.run(  # noqa: S603
-        [sys.executable, "-m", "forge_api.cli", "set-demo-version",
-         "--version", version],
-        check=True, stdout=subprocess.DEVNULL,
+        [sys.executable, "-m", "forge_api.cli", "set-demo-version", "--version", version],
+        check=True,
+        stdout=subprocess.DEVNULL,
     )
 
 
@@ -228,15 +239,19 @@ def healthy_release(forge: Forge) -> dict[str, Any]:
         print(f"    {marker} {stage['name']:9} {detail[:72]}")
     artifact = run["artifacts"][0]
     good(f"artifact {artifact['digest']}")
-    note(f"version {artifact['version']}, {artifact['size_bytes']} bytes, "
-         f"SBOM {artifact['sbom_component_count']} components")
+    note(
+        f"version {artifact['version']}, {artifact['size_bytes']} bytes, "
+        f"SBOM {artifact['sbom_component_count']} components"
+    )
 
     step("Deploying v1.0.0")
-    deployment = forge.deploy({
-        "artifact_digest": artifact["digest"],
-        "environment": ENVIRONMENT,
-        "service_name": SERVICE,
-    })
+    deployment = forge.deploy(
+        {
+            "artifact_digest": artifact["digest"],
+            "environment": ENVIRONMENT,
+            "service_name": SERVICE,
+        }
+    )
     if deployment["state"] != "SUCCEEDED":
         raise DemoError(f"Deployment ended in {deployment['state']}.")
     good(f"deployment {deployment['state']}, weight {deployment['current_weight']}%")
@@ -261,19 +276,23 @@ def faulty_release(forge: Forge, stable: dict[str, Any]) -> dict[str, Any]:
         raise DemoError(f"Pipeline failed: {run['failure_reason'][:300]}")
     candidate = run["artifacts"][0]
     good(f"artifact {candidate['digest']}")
-    note(f"version {candidate['version']} — builds and tests pass; the fault is "
-         f"injected at deploy time")
+    note(
+        f"version {candidate['version']} — builds and tests pass; the fault is "
+        f"injected at deploy time"
+    )
 
     step("Deploying v1.1.0 with a 50% injected error rate")
     note("SAMPLE_ERROR_RATE=0.5 is explicit configuration, not random behaviour")
-    deployment = forge.deploy({
-        "artifact_digest": candidate["digest"],
-        "environment": ENVIRONMENT,
-        "service_name": SERVICE,
-        "canary_steps": [10, 25, 50, 100],
-        "step_seconds": 5,
-        "release_env": {"SAMPLE_ERROR_RATE": "0.5"},
-    })
+    deployment = forge.deploy(
+        {
+            "artifact_digest": candidate["digest"],
+            "environment": ENVIRONMENT,
+            "service_name": SERVICE,
+            "canary_steps": [10, 25, 50, 100],
+            "step_seconds": 5,
+            "release_env": {"SAMPLE_ERROR_RATE": "0.5"},
+        }
+    )
 
     step("Outcome")
     if deployment["state"] != "ROLLED_BACK":
@@ -283,8 +302,7 @@ def faulty_release(forge: Forge, stable: dict[str, Any]) -> dict[str, Any]:
             f"reason={deployment['rollback_reason'][:200]}"
         )
     good(f"state: {deployment['state']}")
-    good(f"rollback verified by post-rollback HTTP check: "
-         f"{deployment['rollback_verified']}")
+    good(f"rollback verified by post-rollback HTTP check: {deployment['rollback_verified']}")
     info(f"reason: {deployment['rollback_reason'][:160]}")
 
     step("Verifying traffic was actually restored to the previous release")
@@ -308,10 +326,12 @@ def faulty_release(forge: Forge, stable: dict[str, Any]) -> dict[str, Any]:
         info(f"{incident['severity']} — {incident['title']}")
         evidence = incident.get("evidence", {})
         if evidence:
-            note(f"verdict={evidence.get('verdict')} "
-                 f"requests={evidence.get('requests')} "
-                 f"errors={evidence.get('errors')} "
-                 f"error_rate={evidence.get('error_rate')}")
+            note(
+                f"verdict={evidence.get('verdict')} "
+                f"requests={evidence.get('requests')} "
+                f"errors={evidence.get('errors')} "
+                f"error_rate={evidence.get('error_rate')}"
+            )
             note(f"breaches={evidence.get('breaches')}")
     return deployment
 

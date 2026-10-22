@@ -24,8 +24,16 @@ from forge_router.state import RoutingTable, Target
 TABLE = RoutingTable()
 _HOP_BY_HOP = frozenset(
     {
-        "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-        "te", "trailers", "transfer-encoding", "upgrade", "host", "content-length",
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+        "host",
+        "content-length",
     }
 )
 
@@ -97,16 +105,19 @@ async def list_routes() -> dict[str, Any]:
 
 @admin_app.put("/routes")
 async def upsert_route(payload: Annotated[RouteIn, Body()]) -> dict[str, Any]:
-    targets = {t.release_id: Target(t.release_id, t.version, t.url.rstrip("/"))
-               for t in payload.targets}
-    weights = payload.weights or {rid: (100 if i == 0 else 0)
-                                  for i, rid in enumerate(targets)}
+    targets = {
+        t.release_id: Target(t.release_id, t.version, t.url.rstrip("/")) for t in payload.targets
+    }
+    weights = payload.weights or {rid: (100 if i == 0 else 0) for i, rid in enumerate(targets)}
     unknown = set(weights) - set(targets)
     if unknown:
         raise HTTPException(422, f"Weights reference unknown releases: {sorted(unknown)}")
     route = TABLE.upsert(payload.service, payload.environment, targets, weights)
-    return {"service": route.service, "environment": route.environment,
-            "weights": route.balancer.weights()}
+    return {
+        "service": route.service,
+        "environment": route.environment,
+        "weights": route.balancer.weights(),
+    }
 
 
 @admin_app.post("/weights")
@@ -120,8 +131,11 @@ async def set_weights(payload: Annotated[WeightsIn, Body()]) -> dict[str, Any]:
         raise HTTPException(422, str(exc)) from exc
     if route is None:
         raise HTTPException(404, "No such route.")
-    return {"service": route.service, "environment": route.environment,
-            "weights": route.balancer.weights()}
+    return {
+        "service": route.service,
+        "environment": route.environment,
+        "weights": route.balancer.weights(),
+    }
 
 
 @admin_app.get("/stats")
@@ -129,8 +143,12 @@ async def route_stats(service: str, environment: str) -> dict[str, Any]:
     route = TABLE.get(service, environment)
     if route is None:
         raise HTTPException(404, "No such route.")
-    return {"service": service, "environment": environment,
-            "weights": route.balancer.weights(), "stats": route.balancer.stats()}
+    return {
+        "service": service,
+        "environment": environment,
+        "weights": route.balancer.weights(),
+        "stats": route.balancer.stats(),
+    }
 
 
 @admin_app.post("/stats/reset")
@@ -184,23 +202,23 @@ async def proxy(service: str, environment: str, path: str, request: Request) -> 
     route = TABLE.get(service, environment)
     if route is None:
         return JSONResponse(
-            {"error": "no_route",
-             "detail": f"No route registered for {service}/{environment}."},
+            {"error": "no_route", "detail": f"No route registered for {service}/{environment}."},
             status_code=503,
         )
 
     release_id = route.balancer.select()
     if release_id is None or release_id not in route.targets:
         return JSONResponse(
-            {"error": "no_healthy_target",
-             "detail": "No release currently carries traffic for this route."},
+            {
+                "error": "no_healthy_target",
+                "detail": "No release currently carries traffic for this route.",
+            },
             status_code=503,
         )
 
     target = route.targets[release_id]
     url = f"{target.url}/{path}" if path else target.url
-    headers = {k: v for k, v in request.headers.items()
-               if k.lower() not in _HOP_BY_HOP}
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP}
     headers["X-Forwarded-For"] = request.client.host if request.client else "unknown"
     headers["X-Forge-Release"] = release_id
 
@@ -209,16 +227,22 @@ async def proxy(service: str, environment: str, path: str, request: Request) -> 
     try:
         body = await request.body()
         upstream = await client.request(
-            request.method, url, content=body or None,
-            headers=headers, params=dict(request.query_params),
+            request.method,
+            url,
+            content=body or None,
+            headers=headers,
+            params=dict(request.query_params),
         )
     except httpx.RequestError as exc:
         # An unreachable backend is a 502 and is counted as an error against that
         # release, which is exactly the signal a failing canary should produce.
         route.balancer.record(release_id, error=True)
         return JSONResponse(
-            {"error": "upstream_unavailable", "release_id": release_id,
-             "detail": type(exc).__name__},
+            {
+                "error": "upstream_unavailable",
+                "release_id": release_id,
+                "detail": type(exc).__name__,
+            },
             status_code=502,
             headers={"X-Forge-Release": release_id, "X-Forge-Version": target.version},
         )
@@ -226,8 +250,7 @@ async def proxy(service: str, environment: str, path: str, request: Request) -> 
     elapsed_ms = (time.perf_counter() - started) * 1000
     route.balancer.record(release_id, error=upstream.status_code >= 500)
 
-    response_headers = {k: v for k, v in upstream.headers.items()
-                        if k.lower() not in _HOP_BY_HOP}
+    response_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in _HOP_BY_HOP}
     response_headers["X-Forge-Release"] = release_id
     response_headers["X-Forge-Version"] = target.version
     response_headers["X-Forge-Weight"] = str(route.balancer.weights().get(release_id, 0))
@@ -248,8 +271,10 @@ async def proxy_metrics() -> Response:
     ]
     for route in TABLE.all():
         for release_id, stat in route.balancer.stats().items():
-            labels = (f'service="{route.service}",environment="{route.environment}",'
-                      f'release="{release_id}"')
+            labels = (
+                f'service="{route.service}",environment="{route.environment}",'
+                f'release="{release_id}"'
+            )
             lines.append(f"forge_router_requests_total{{{labels}}} {stat['requests']}")
             lines.append(f"forge_router_errors_total{{{labels}}} {stat['errors']}")
             lines.append(f"forge_router_weight{{{labels}}} {stat['weight']}")

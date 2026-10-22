@@ -69,8 +69,7 @@ async def acquire(
         )
         current = held.mappings().one_or_none()
         raise LockAcquisitionError(
-            "Another deployment is already in progress for this service and "
-            "environment.",
+            "Another deployment is already in progress for this service and environment.",
             details={
                 "resource": resource,
                 "held_by": current["owner"] if current else "unknown",
@@ -94,8 +93,7 @@ async def renew(
             RETURNING token, expires_at
             """
         ),
-        {"resource": lock.resource, "owner": lock.owner,
-         "token": lock.token, "expires": expires},
+        {"resource": lock.resource, "owner": lock.owner, "token": lock.token, "expires": expires},
     )
     row = result.mappings().one_or_none()
     if row is None:
@@ -117,8 +115,11 @@ async def assert_held(session: AsyncSession, lock: DeploymentLock) -> None:
     if row is None or row["owner"] != lock.owner or row["token"] != lock.token:
         raise FencedError(
             "Deployment lock is no longer held by this worker.",
-            details={"resource": lock.resource, "expected_token": lock.token,
-                     "actual_token": row["token"] if row else None},
+            details={
+                "resource": lock.resource,
+                "expected_token": lock.token,
+                "actual_token": row["token"] if row else None,
+            },
         )
 
 

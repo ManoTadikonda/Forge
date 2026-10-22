@@ -35,15 +35,12 @@ class InMemoryRateLimiter:
     def __init__(self) -> None:
         self._counters: dict[tuple[str, int], int] = {}
 
-    async def check(self, key: str, *, limit: int, window_seconds: int = 60
-                    ) -> RateLimitDecision:
+    async def check(self, key: str, *, limit: int, window_seconds: int = 60) -> RateLimitDecision:
         bucket = int(time.time() // window_seconds)
         composite = (key, bucket)
         # Drop counters from previous windows so the dict cannot grow without bound.
         if len(self._counters) > 10_000:
-            self._counters = {
-                k: v for k, v in self._counters.items() if k[1] >= bucket - 1
-            }
+            self._counters = {k: v for k, v in self._counters.items() if k[1] >= bucket - 1}
         count = self._counters.get(composite, 0) + 1
         self._counters[composite] = count
         reset = window_seconds - int(time.time() % window_seconds)
@@ -65,8 +62,7 @@ class RedisRateLimiter:
             url, decode_responses=True
         )
 
-    async def check(self, key: str, *, limit: int, window_seconds: int = 60
-                    ) -> RateLimitDecision:
+    async def check(self, key: str, *, limit: int, window_seconds: int = 60) -> RateLimitDecision:
         bucket = int(time.time() // window_seconds)
         composite = f"forge:ratelimit:{key}:{bucket}"
         try:
@@ -80,9 +76,7 @@ class RedisRateLimiter:
             logger.warning("ratelimit_backend_unavailable", key=key)
             return RateLimitDecision(True, limit, limit, window_seconds)
         reset = window_seconds - int(time.time() % window_seconds)
-        return RateLimitDecision(
-            int(count) <= limit, max(0, limit - int(count)), limit, reset
-        )
+        return RateLimitDecision(int(count) <= limit, max(0, limit - int(count)), limit, reset)
 
     async def ping(self) -> bool:
         try:

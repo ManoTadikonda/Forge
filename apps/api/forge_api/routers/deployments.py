@@ -57,7 +57,9 @@ def job_key(deployment_id: uuid.UUID) -> str:
 
 
 @router.post(
-    "", response_model=DeploymentOut, status_code=status.HTTP_201_CREATED,
+    "",
+    response_model=DeploymentOut,
+    status_code=status.HTTP_201_CREATED,
     summary="Create a deployment",
 )
 async def create_deployment(
@@ -73,9 +75,7 @@ async def create_deployment(
 
     artifact = await _resolve_artifact(session, payload)
     environment = (
-        await session.execute(
-            select(Environment).where(Environment.name == payload.environment)
-        )
+        await session.execute(select(Environment).where(Environment.name == payload.environment))
     ).scalar_one_or_none()
     if environment is None:
         raise NotFoundError(f"No such environment: {payload.environment!r}.")
@@ -102,7 +102,8 @@ async def create_deployment(
                 Deployment.service_id == service.id,
                 Deployment.state.in_(ACTIVE_STATES),
             )
-        ) or 0
+        )
+        or 0
     )
     if active:
         raise ConflictError(
@@ -119,7 +120,8 @@ async def create_deployment(
             select(func.coalesce(func.max(Deployment.deployment_number), 0) + 1).where(
                 Deployment.service_id == service.id
             )
-        ) or 1
+        )
+        or 1
     )
 
     deployment = Deployment(
@@ -146,22 +148,35 @@ async def create_deployment(
     await session.flush()
 
     await record_event(
-        session, deployment.id, kind="created",
+        session,
+        deployment.id,
+        kind="created",
         message=f"Deployment of {artifact.image_name} {artifact.version} "
-                f"({artifact.digest[:19]}…) to {environment.name} requested.",
-        to_state=DeploymentState.PENDING.value, actor=user.email,
+        f"({artifact.digest[:19]}…) to {environment.name} requested.",
+        to_state=DeploymentState.PENDING.value,
+        actor=user.email,
         payload={"digest": artifact.digest, "steps": steps},
     )
     # Enqueued in the same transaction as the row it refers to.
     await queue.enqueue(
-        session, kind=JobKind.RUN_DEPLOYMENT, dedupe_key=job_key(deployment.id),
-        payload={"deployment_id": str(deployment.id)}, max_attempts=1,
+        session,
+        kind=JobKind.RUN_DEPLOYMENT,
+        dedupe_key=job_key(deployment.id),
+        payload={"deployment_id": str(deployment.id)},
+        max_attempts=1,
     )
     await record_audit(
-        session, action="deployment.create", actor_id=user.id, actor_label=user.email,
-        resource_type="deployment", resource_id=str(deployment.id),
-        detail={"service": service.name, "environment": environment.name,
-                "digest": artifact.digest},
+        session,
+        action="deployment.create",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="deployment",
+        resource_id=str(deployment.id),
+        detail={
+            "service": service.name,
+            "environment": environment.name,
+            "digest": artifact.digest,
+        },
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
@@ -171,9 +186,7 @@ async def create_deployment(
     return DeploymentOut.model_validate(deployment)
 
 
-async def _resolve_artifact(
-    session: AsyncSession, payload: DeploymentCreate
-) -> Artifact:
+async def _resolve_artifact(session: AsyncSession, payload: DeploymentCreate) -> Artifact:
     if payload.artifact_id is not None:
         artifact = await session.get(Artifact, payload.artifact_id)
     elif payload.artifact_digest:
@@ -204,16 +217,12 @@ async def _resolve_service(
     name = payload.service_name or artifact.image_name
     service = (
         await session.execute(
-            select(Service).where(
-                Service.name == name, Service.environment_id == environment.id
-            )
+            select(Service).where(Service.name == name, Service.environment_id == environment.id)
         )
     ).scalar_one_or_none()
     if service is None:
         # First deployment of this service into this environment creates it.
-        service = Service(
-            id=uuid.uuid4(), name=name, environment_id=environment.id, config={}
-        )
+        service = Service(id=uuid.uuid4(), name=name, environment_id=environment.id, config={})
         session.add(service)
         await session.flush()
     return service
@@ -236,9 +245,7 @@ async def list_deployments(
             raise ValidationError(f"Unknown deployment state {state!r}.")
         conditions.append(Deployment.state == state)
 
-    total = int(
-        await session.scalar(select(func.count(Deployment.id)).where(*conditions)) or 0
-    )
+    total = int(await session.scalar(select(func.count(Deployment.id)).where(*conditions)) or 0)
     rows = (
         await session.execute(
             select(Deployment)
@@ -250,7 +257,9 @@ async def list_deployments(
     ).scalars()
     return Page(
         items=[DeploymentOut.model_validate(d) for d in rows],
-        total=total, limit=limit, offset=offset,
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -303,7 +312,8 @@ async def get_deployment(
 
 
 @router.get(
-    "/{deployment_id}/events", response_model=list[DeploymentEventOut],
+    "/{deployment_id}/events",
+    response_model=list[DeploymentEventOut],
     summary="Deployment timeline",
 )
 async def get_events(
@@ -338,21 +348,26 @@ async def cancel_deployment(
     if deployment is None:
         raise NotFoundError("No such deployment.")
 
-    if DeploymentState(deployment.state) not in {
-        DeploymentState(s) for s in ACTIVE_STATES
-    }:
+    if DeploymentState(deployment.state) not in {DeploymentState(s) for s in ACTIVE_STATES}:
         # Idempotent: cancelling a finished deployment is accepted and is a no-op.
         return DeploymentOut.model_validate(deployment)
 
     deployment.cancel_requested = True
     await queue.request_cancel(session, job_key(deployment_id))
     await record_event(
-        session, deployment_id, kind="cancel_requested",
-        message="Cancellation requested by an operator.", actor=user.email,
+        session,
+        deployment_id,
+        kind="cancel_requested",
+        message="Cancellation requested by an operator.",
+        actor=user.email,
     )
     await record_audit(
-        session, action="deployment.cancel", actor_id=user.id, actor_label=user.email,
-        resource_type="deployment", resource_id=str(deployment_id),
+        session,
+        action="deployment.cancel",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="deployment",
+        resource_id=str(deployment_id),
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
@@ -361,8 +376,10 @@ async def cancel_deployment(
 
 
 @router.post(
-    "/{deployment_id}/rollback", response_model=DeploymentOut,
-    status_code=status.HTTP_201_CREATED, summary="Roll back to the previous artifact",
+    "/{deployment_id}/rollback",
+    response_model=DeploymentOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Roll back to the previous artifact",
 )
 async def rollback_deployment(
     deployment_id: uuid.UUID,
@@ -380,13 +397,9 @@ async def rollback_deployment(
     if original is None:
         raise NotFoundError("No such deployment.")
     if original.previous_artifact_id is None:
-        raise ConflictError(
-            "This deployment has no previous artifact to roll back to."
-        )
+        raise ConflictError("This deployment has no previous artifact to roll back to.")
     if original.state in ACTIVE_STATES:
-        raise ConflictError(
-            "This deployment is still in progress; cancel it before rolling back."
-        )
+        raise ConflictError("This deployment is still in progress; cancel it before rolling back.")
 
     target = await session.get(Artifact, original.previous_artifact_id)
     if target is None:
@@ -403,7 +416,8 @@ async def rollback_deployment(
                 Deployment.service_id == service.id,
                 Deployment.state.in_(ACTIVE_STATES),
             )
-        ) or 0
+        )
+        or 0
     )
     if active:
         raise ConflictError("A deployment is already in progress for this service.")
@@ -413,7 +427,8 @@ async def rollback_deployment(
             select(func.coalesce(func.max(Deployment.deployment_number), 0) + 1).where(
                 Deployment.service_id == service.id
             )
-        ) or 1
+        )
+        or 1
     )
     settings = request.app.state.settings
     deployment = Deployment(
@@ -440,19 +455,28 @@ async def rollback_deployment(
     session.add(deployment)
     await session.flush()
     await record_event(
-        session, deployment.id, kind="manual_rollback",
+        session,
+        deployment.id,
+        kind="manual_rollback",
         message=f"Manual rollback to {target.version} ({target.digest[:19]}…) "
-                f"requested by {user.email}.",
-        to_state=DeploymentState.PENDING.value, actor=user.email,
+        f"requested by {user.email}.",
+        to_state=DeploymentState.PENDING.value,
+        actor=user.email,
         payload={"rolled_back_from": str(deployment_id)},
     )
     await queue.enqueue(
-        session, kind=JobKind.RUN_DEPLOYMENT, dedupe_key=job_key(deployment.id),
-        payload={"deployment_id": str(deployment.id)}, max_attempts=1,
+        session,
+        kind=JobKind.RUN_DEPLOYMENT,
+        dedupe_key=job_key(deployment.id),
+        payload={"deployment_id": str(deployment.id)},
+        max_attempts=1,
     )
     await record_audit(
-        session, action="deployment.rollback", actor_id=user.id,
-        actor_label=user.email, resource_type="deployment",
+        session,
+        action="deployment.rollback",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="deployment",
         resource_id=str(deployment.id),
         detail={"from_deployment": str(deployment_id), "to_digest": target.digest},
         ip_address=request.client.host if request.client else "",

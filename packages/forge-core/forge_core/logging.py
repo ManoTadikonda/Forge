@@ -77,9 +77,7 @@ def _redact_processor(
     return result
 
 
-def configure_logging(
-    *, level: str = "INFO", fmt: str = "json", service: str = "forge"
-) -> None:
+def configure_logging(*, level: str = "INFO", fmt: str = "json", service: str = "forge") -> None:
     """Install the structlog + stdlib logging pipeline. Idempotent."""
     renderer: structlog.types.Processor = (
         structlog.processors.JSONRenderer()

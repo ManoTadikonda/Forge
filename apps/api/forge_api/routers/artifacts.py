@@ -28,12 +28,8 @@ async def list_artifacts(
     offset: Annotated[int, Query(ge=0)] = 0,
     image_name: Annotated[str, Query(max_length=255)] = "",
 ) -> Page[ArtifactOut]:
-    conditions: list[Any] = (
-        [Artifact.image_name == image_name] if image_name else []
-    )
-    total = int(
-        await session.scalar(select(func.count(Artifact.id)).where(*conditions)) or 0
-    )
+    conditions: list[Any] = [Artifact.image_name == image_name] if image_name else []
+    total = int(await session.scalar(select(func.count(Artifact.id)).where(*conditions)) or 0)
     rows = (
         await session.execute(
             select(Artifact)
@@ -45,7 +41,9 @@ async def list_artifacts(
     ).scalars()
     return Page(
         items=[ArtifactOut.model_validate(a) for a in rows],
-        total=total, limit=limit, offset=offset,
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 

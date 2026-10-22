@@ -55,10 +55,15 @@ async def append_log(
             # Already at the ceiling: record the fact once, not the output.
             session.add(
                 LogChunk(
-                    id=uuid.uuid4(), owner_type=owner_type, owner_id=owner_id,
-                    stage=stage, sequence=int(next_sequence),
+                    id=uuid.uuid4(),
+                    owner_type=owner_type,
+                    owner_id=owner_id,
+                    stage=stage,
+                    sequence=int(next_sequence),
                     content="[forge] log size limit reached; further output discarded.",
-                    byte_size=0, truncated=True, created_at=datetime.now(UTC),
+                    byte_size=0,
+                    truncated=True,
+                    created_at=datetime.now(UTC),
                 )
             )
             return 1

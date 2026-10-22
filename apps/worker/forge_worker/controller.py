@@ -122,8 +122,10 @@ class DeploymentController:
             if target is DeploymentState.PREPARING and deployment.started_at is None:
                 deployment.started_at = now
             if target in (
-                DeploymentState.SUCCEEDED, DeploymentState.FAILED,
-                DeploymentState.CANCELED, DeploymentState.ROLLED_BACK,
+                DeploymentState.SUCCEEDED,
+                DeploymentState.FAILED,
+                DeploymentState.CANCELED,
+                DeploymentState.ROLLED_BACK,
                 DeploymentState.ROLLBACK_FAILED,
             ):
                 deployment.finished_at = now
@@ -132,33 +134,46 @@ class DeploymentController:
                         (now - deployment.started_at).total_seconds() * 1000
                     )
             await record_event(
-                session, deployment_id, kind=kind, message=message,
-                from_state=source.value, to_state=target.value,
-                actor=self._worker_id, payload=payload or {},
+                session,
+                deployment_id,
+                kind=kind,
+                message=message,
+                from_state=source.value,
+                to_state=target.value,
+                actor=self._worker_id,
+                payload=payload or {},
             )
             logger.info(
-                "deployment_transition", deployment_id=str(deployment_id),
-                from_state=source.value, to_state=target.value, message=message,
+                "deployment_transition",
+                deployment_id=str(deployment_id),
+                from_state=source.value,
+                to_state=target.value,
+                message=message,
             )
             return target
 
     async def _event(
-        self, deployment_id: uuid.UUID, kind: str, message: str,
+        self,
+        deployment_id: uuid.UUID,
+        kind: str,
+        message: str,
         payload: dict[str, Any] | None = None,
     ) -> None:
         async with self._sessionmaker() as session, session.begin():
             await record_event(
-                session, deployment_id, kind=kind, message=message,
-                actor=self._worker_id, payload=payload or {},
+                session,
+                deployment_id,
+                kind=kind,
+                message=message,
+                actor=self._worker_id,
+                payload=payload or {},
             )
 
     async def _cancel_requested(self, deployment_id: uuid.UUID) -> bool:
         async with self._sessionmaker() as session:
             return bool(
                 await session.scalar(
-                    select(Deployment.cancel_requested).where(
-                        Deployment.id == deployment_id
-                    )
+                    select(Deployment.cancel_requested).where(Deployment.id == deployment_id)
                 )
             )
 
@@ -171,8 +186,10 @@ class DeploymentController:
             if deployment is None:
                 raise DeploymentError(f"Deployment {deployment_id} not found.")
             if DeploymentState(deployment.state) in (
-                DeploymentState.SUCCEEDED, DeploymentState.FAILED,
-                DeploymentState.CANCELED, DeploymentState.ROLLED_BACK,
+                DeploymentState.SUCCEEDED,
+                DeploymentState.FAILED,
+                DeploymentState.CANCELED,
+                DeploymentState.ROLLED_BACK,
                 DeploymentState.ROLLBACK_FAILED,
             ):
                 # Idempotency: at-least-once delivery may redeliver a finished job.
@@ -194,7 +211,9 @@ class DeploymentController:
         resource = locking.resource_key(service_id, environment_id)
         async with self._sessionmaker() as session, session.begin():
             lock = await locking.acquire(
-                session, resource, self._worker_id,
+                session,
+                resource,
+                self._worker_id,
                 ttl_seconds=self._settings.deployment_lock_ttl_seconds,
             )
 
@@ -239,9 +258,10 @@ class DeploymentController:
         try:
             # ---------------------------------------------------- PREPARING
             await self._transition(
-                deployment_id, DeploymentState.PREPARING,
+                deployment_id,
+                DeploymentState.PREPARING,
                 message=f"Preparing release of {artifact.version} "
-                        f"({artifact.digest[:19]}…) to {env_name}.",
+                f"({artifact.digest[:19]}…) to {env_name}.",
                 payload={"digest": artifact.digest, "version": artifact.version},
             )
             await locking.assert_held_in(self._sessionmaker, lock)
@@ -257,7 +277,8 @@ class DeploymentController:
 
             # ---------------------------------------------------- DEPLOYING
             await self._transition(
-                deployment_id, DeploymentState.DEPLOYING,
+                deployment_id,
+                DeploymentState.DEPLOYING,
                 message=f"Starting candidate release {candidate.release_id}.",
             )
             spec = ReleaseSpec(
@@ -272,16 +293,22 @@ class DeploymentController:
             candidate.handle = await self._adapter.start_release(spec)
             started_candidate = True
             candidate.row_id = await self._persist_release(
-                deployment_id, service_id, artifact.id, candidate,
-                role=ReleaseRole.CANDIDATE, weight=0,
+                deployment_id,
+                service_id,
+                artifact.id,
+                candidate,
+                role=ReleaseRole.CANDIDATE,
+                weight=0,
             )
             await self._event(
-                deployment_id, "candidate_started",
-                f"Candidate {candidate.version} is running at "
-                f"{candidate.handle.primary_endpoint}.",
-                {"release_id": candidate.release_id,
-                 "endpoint": candidate.handle.primary_endpoint,
-                 "digest": candidate.digest},
+                deployment_id,
+                "candidate_started",
+                f"Candidate {candidate.version} is running at {candidate.handle.primary_endpoint}.",
+                {
+                    "release_id": candidate.release_id,
+                    "endpoint": candidate.handle.primary_endpoint,
+                    "digest": candidate.digest,
+                },
             )
 
             # Register both releases on the router with all traffic still on stable.
@@ -291,13 +318,12 @@ class DeploymentController:
                 if stable
                 else {candidate.release_id: 100}
             )
-            await self._adapter.register_route(
-                service_name, env_name, handles, initial
-            )
+            await self._adapter.register_route(service_name, env_name, handles, initial)
 
             # ---------------------------------------------------- VERIFYING
             await self._transition(
-                deployment_id, DeploymentState.VERIFYING,
+                deployment_id,
+                DeploymentState.VERIFYING,
                 message="Waiting for the candidate to report ready.",
             )
             ready = await self._adapter.wait_ready(candidate.handle, timeout_seconds=60)
@@ -312,7 +338,8 @@ class DeploymentController:
                     "Candidate failed its direct health check before receiving traffic."
                 )
             await self._event(
-                deployment_id, "candidate_verified",
+                deployment_id,
+                "candidate_verified",
                 "Candidate passed its pre-traffic health and readiness checks.",
                 {"release_id": candidate.release_id},
             )
@@ -326,7 +353,8 @@ class DeploymentController:
 
             # ------------------------------------------------------- CANARY
             await self._transition(
-                deployment_id, DeploymentState.CANARY,
+                deployment_id,
+                DeploymentState.CANARY,
                 message="Beginning progressive traffic shift to the candidate.",
             )
             await self._run_canary(
@@ -341,11 +369,13 @@ class DeploymentController:
 
             # ---------------------------------------------------- PROMOTING
             await self._transition(
-                deployment_id, DeploymentState.PROMOTING,
+                deployment_id,
+                DeploymentState.PROMOTING,
                 message="Health thresholds satisfied at every step; promoting.",
             )
             await self._adapter.set_traffic_weights(
-                service_name, env_name,
+                service_name,
+                env_name,
                 {candidate.release_id: 100, stable.release_id: 0},
             )
             confirmed = await self._verify_serving(
@@ -361,9 +391,9 @@ class DeploymentController:
             await self._mark_stable(deployment_id, service_id, artifact.id, candidate)
 
             await self._transition(
-                deployment_id, DeploymentState.SUCCEEDED,
-                message=f"Release {candidate.version} promoted and serving 100% "
-                        f"of traffic.",
+                deployment_id,
+                DeploymentState.SUCCEEDED,
+                message=f"Release {candidate.version} promoted and serving 100% of traffic.",
                 kind="promoted",
                 payload={"version": candidate.version, "digest": candidate.digest},
             )
@@ -384,7 +414,8 @@ class DeploymentController:
             # Another worker owns this deployment now. Stop without touching shared
             # infrastructure; the new owner is responsible for it.
             await self._event(
-                deployment_id, "fenced",
+                deployment_id,
+                "fenced",
                 f"Stopped without acting: {fenced.message}",
             )
             raise
@@ -393,9 +424,12 @@ class DeploymentController:
             logger.exception("deployment_failed", deployment_id=str(deployment_id))
             if started_candidate and stable is not None:
                 return await self._rollback(
-                    deployment_id=deployment_id, service_id=service_id,
-                    service_name=service_name, env_name=env_name,
-                    candidate=candidate, stable=stable,
+                    deployment_id=deployment_id,
+                    service_id=service_id,
+                    service_name=service_name,
+                    env_name=env_name,
+                    candidate=candidate,
+                    stable=stable,
                     reason=f"Deployment raised an unexpected error: {reason}",
                     assessment=None,
                 )
@@ -411,16 +445,12 @@ class DeploymentController:
 
     def _thresholds(self, canary_config: dict[str, Any]) -> HealthThresholds:
         return HealthThresholds(
-            min_samples=int(
-                canary_config.get("min_samples") or self._settings.health_min_samples
-            ),
+            min_samples=int(canary_config.get("min_samples") or self._settings.health_min_samples),
             max_error_rate=float(
-                canary_config.get("max_error_rate")
-                or self._settings.health_max_error_rate
+                canary_config.get("max_error_rate") or self._settings.health_max_error_rate
             ),
             max_p95_latency_ms=float(
-                canary_config.get("max_p95_latency_ms")
-                or self._settings.health_max_p95_latency_ms
+                canary_config.get("max_p95_latency_ms") or self._settings.health_max_p95_latency_ms
             ),
             staleness_seconds=self._settings.health_sample_staleness_seconds,
         )
@@ -457,12 +487,14 @@ class DeploymentController:
             await locking.assert_held_in(self._sessionmaker, lock)
 
             await self._adapter.set_traffic_weights(
-                service_name, env_name,
+                service_name,
+                env_name,
                 {candidate.release_id: weight, stable.release_id: 100 - weight},
             )
             await self._update_step(deployment_id, index, weight)
             await self._event(
-                deployment_id, "canary_step",
+                deployment_id,
+                "canary_step",
                 f"Shifted {weight}% of traffic to the candidate.",
                 {"step": index + 1, "of": plan.total_steps, "weight": weight},
             )
@@ -480,9 +512,7 @@ class DeploymentController:
             # minimum sample threshold and the verdict would be UNKNOWN regardless of
             # how it is actually behaving. Size the burst so the *candidate* clears
             # min_samples at this weight.
-            probe_requests = configured_probe or _probe_count_for(
-                weight, thresholds.min_samples
-            )
+            probe_requests = configured_probe or _probe_count_for(weight, thresholds.min_samples)
             sent = await traffic.generate(client, url, count=probe_requests)
             await self._sleep(min(2.0, plan.step_seconds / 4))
 
@@ -495,13 +525,15 @@ class DeploymentController:
 
             elapsed = (datetime.now(UTC) - step_started).total_seconds()
             decision = decide(
-                plan, step_index=index,
+                plan,
+                step_index=index,
                 seconds_in_step=max(elapsed, plan.step_seconds),
                 assessment=candidate_assessment,
             )
 
             await self._event(
-                deployment_id, "health_evaluated",
+                deployment_id,
+                "health_evaluated",
                 f"{candidate_assessment.verdict}: {candidate_assessment.reason}",
                 {
                     "weight": weight,
@@ -591,11 +623,11 @@ class DeploymentController:
     ) -> DeploymentState:
         """Restore the previous release and verify it is actually serving."""
         await self._transition(
-            deployment_id, DeploymentState.ROLLING_BACK,
+            deployment_id,
+            DeploymentState.ROLLING_BACK,
             message=f"Rolling back: {reason}",
             kind="rollback_started",
-            payload={"reason": reason,
-                     "evidence": assessment.as_dict() if assessment else {}},
+            payload={"reason": reason, "evidence": assessment.as_dict() if assessment else {}},
         )
         async with self._sessionmaker() as session, session.begin():
             deployment = await session.get(Deployment, deployment_id)
@@ -605,7 +637,8 @@ class DeploymentController:
         if stable is None:
             # Nothing to roll back to: the service has no previously healthy release.
             await self._event(
-                deployment_id, "rollback_impossible",
+                deployment_id,
+                "rollback_impossible",
                 "No previous healthy release exists for this service, so traffic "
                 "cannot be restored to one.",
             )
@@ -613,7 +646,10 @@ class DeploymentController:
                 with suppress(Exception):
                     await self._adapter.stop_release(candidate.handle)
             return await self._finish_rollback(
-                deployment_id, service_id, verified=False, reason=reason,
+                deployment_id,
+                service_id,
+                verified=False,
+                reason=reason,
                 assessment=assessment,
                 detail="There was no previous healthy release to restore.",
             )
@@ -623,13 +659,14 @@ class DeploymentController:
         try:
             # 1. Shift all traffic back to the known-good release.
             await self._adapter.set_traffic_weights(
-                service_name, env_name,
+                service_name,
+                env_name,
                 {stable.release_id: 100, **({candidate.release_id: 0} if candidate else {})},
             )
             await self._event(
-                deployment_id, "traffic_restored",
-                f"All traffic routed back to the previous release "
-                f"{stable.version}.",
+                deployment_id,
+                "traffic_restored",
+                f"All traffic routed back to the previous release {stable.version}.",
                 {"stable_release": stable.release_id, "weight": 100},
             )
 
@@ -639,7 +676,8 @@ class DeploymentController:
                     await self._adapter.stop_release(candidate.handle)
                 await self._mark_release_stopped(candidate)
                 await self._event(
-                    deployment_id, "candidate_stopped",
+                    deployment_id,
+                    "candidate_stopped",
                     f"Candidate release {candidate.release_id} was stopped.",
                 )
 
@@ -655,20 +693,25 @@ class DeploymentController:
                 f"= {serving}, stable health probe = {healthy}."
             )
             await self._event(
-                deployment_id, "rollback_verification", detail,
+                deployment_id,
+                "rollback_verification",
+                detail,
                 {"serving": serving, "healthy": healthy},
             )
         except Exception as exc:
             detail = f"Rollback verification raised {type(exc).__name__}: {exc}"
-            logger.exception("rollback_verification_failed",
-                             deployment_id=str(deployment_id))
+            logger.exception("rollback_verification_failed", deployment_id=str(deployment_id))
 
         if verified:
             await self._restore_stable_record(service_id, stable)
 
         return await self._finish_rollback(
-            deployment_id, service_id, verified=verified, reason=reason,
-            assessment=assessment, detail=detail,
+            deployment_id,
+            service_id,
+            verified=verified,
+            reason=reason,
+            assessment=assessment,
+            detail=detail,
         )
 
     async def _finish_rollback(
@@ -681,9 +724,7 @@ class DeploymentController:
         assessment: HealthAssessment | None,
         detail: str,
     ) -> DeploymentState:
-        target = (
-            DeploymentState.ROLLED_BACK if verified else DeploymentState.ROLLBACK_FAILED
-        )
+        target = DeploymentState.ROLLED_BACK if verified else DeploymentState.ROLLBACK_FAILED
         async with self._sessionmaker() as session, session.begin():
             deployment = await session.get(Deployment, deployment_id)
             if deployment is not None:
@@ -704,7 +745,8 @@ class DeploymentController:
                 evidence=assessment.as_dict() if assessment else {"reason": reason},
             )
         await self._transition(
-            deployment_id, target,
+            deployment_id,
+            target,
             message=(
                 "Traffic restored to the previous healthy release and verified."
                 if verified
@@ -716,21 +758,25 @@ class DeploymentController:
         return target
 
     async def _verify_serving(
-        self, service_name: str, env_name: str, expected_version: str,
-        *, expected_minimum: float, requests: int = 20,
+        self,
+        service_name: str,
+        env_name: str,
+        expected_version: str,
+        *,
+        expected_minimum: float,
+        requests: int = 20,
     ) -> bool:
         """Issue real requests through the router and confirm who answers them."""
         client = await self._http()
-        url = (
-            f"http://{self._settings.router_public_host}:8098/"
-            f"{service_name}/{env_name}/api/work"
-        )
+        url = f"http://{self._settings.router_public_host}:8098/{service_name}/{env_name}/api/work"
         result = await traffic.generate(client, url, count=requests)
         served = result.by_version.get(expected_version, 0)
         ratio = served / requests if requests else 0.0
         logger.info(
-            "serving_verification", expected_version=expected_version,
-            observed=result.by_version, ratio=round(ratio, 3),
+            "serving_verification",
+            expected_version=expected_version,
+            observed=result.by_version,
+            ratio=round(ratio, 3),
         )
         return ratio >= expected_minimum
 
@@ -756,27 +802,35 @@ class DeploymentController:
         if row is None:
             return None
         handles = {
-            h.release_id: h
-            for h in await self._adapter.list_releases(service_name, env_name)
+            h.release_id: h for h in await self._adapter.list_releases(service_name, env_name)
         }
         handle = handles.get(str(row.endpoints.get("release_id", "")))
         if handle is None:
             # The adapter has no live process for it (e.g. after a restart); it is
             # not a usable rollback target, and saying so is better than pretending.
             logger.warning(
-                "stable_release_not_running", service=service_name,
+                "stable_release_not_running",
+                service=service_name,
                 release=row.endpoints.get("release_id"),
             )
             return None
         return _ReleaseContext(
-            release_id=handle.release_id, version=handle.version,
-            digest=handle.image_digest, handle=handle, row_id=row.id,
+            release_id=handle.release_id,
+            version=handle.version,
+            digest=handle.image_digest,
+            handle=handle,
+            row_id=row.id,
         )
 
     async def _persist_release(
-        self, deployment_id: uuid.UUID, service_id: uuid.UUID,
-        artifact_id: uuid.UUID, release: _ReleaseContext,
-        *, role: ReleaseRole, weight: int,
+        self,
+        deployment_id: uuid.UUID,
+        service_id: uuid.UUID,
+        artifact_id: uuid.UUID,
+        release: _ReleaseContext,
+        *,
+        role: ReleaseRole,
+        weight: int,
     ) -> uuid.UUID:
         async with self._sessionmaker() as session, session.begin():
             row = Release(
@@ -798,9 +852,7 @@ class DeploymentController:
             await session.flush()
             return row.id
 
-    async def _update_step(
-        self, deployment_id: uuid.UUID, index: int, weight: int
-    ) -> None:
+    async def _update_step(self, deployment_id: uuid.UUID, index: int, weight: int) -> None:
         async with self._sessionmaker() as session, session.begin():
             deployment = await session.get(Deployment, deployment_id)
             if deployment is not None:
@@ -809,8 +861,11 @@ class DeploymentController:
                 deployment.step_started_at = datetime.now(UTC)
 
     async def _store_health_summary(
-        self, deployment_id: uuid.UUID, candidate: HealthAssessment,
-        stable: HealthAssessment, weight: int,
+        self,
+        deployment_id: uuid.UUID,
+        candidate: HealthAssessment,
+        stable: HealthAssessment,
+        weight: int,
     ) -> None:
         async with self._sessionmaker() as session, session.begin():
             deployment = await session.get(Deployment, deployment_id)
@@ -838,9 +893,7 @@ class DeploymentController:
             await self._adapter.stop_release(stable.handle)
         await self._mark_release_stopped(stable)
 
-    async def _restore_stable_record(
-        self, service_id: uuid.UUID, stable: _ReleaseContext
-    ) -> None:
+    async def _restore_stable_record(self, service_id: uuid.UUID, stable: _ReleaseContext) -> None:
         if stable.row_id is None:
             return
         async with self._sessionmaker() as session, session.begin():
@@ -851,8 +904,11 @@ class DeploymentController:
                 row.is_running = True
 
     async def _mark_stable(
-        self, deployment_id: uuid.UUID, service_id: uuid.UUID,
-        artifact_id: uuid.UUID, candidate: _ReleaseContext,
+        self,
+        deployment_id: uuid.UUID,
+        service_id: uuid.UUID,
+        artifact_id: uuid.UUID,
+        candidate: _ReleaseContext,
     ) -> None:
         async with self._sessionmaker() as session, session.begin():
             if candidate.row_id is not None:
@@ -865,25 +921,31 @@ class DeploymentController:
                 service.current_artifact_id = artifact_id
 
     async def _promote_initial(
-        self, deployment_id: uuid.UUID, service_id: uuid.UUID, artifact: Artifact,
-        candidate: _ReleaseContext, service_name: str, env_name: str,
+        self,
+        deployment_id: uuid.UUID,
+        service_id: uuid.UUID,
+        artifact: Artifact,
+        candidate: _ReleaseContext,
+        service_name: str,
+        env_name: str,
     ) -> DeploymentState:
         """First release of a service: no canary, because there is no baseline."""
         await self._event(
-            deployment_id, "initial_release",
+            deployment_id,
+            "initial_release",
             "No previous release exists for this service, so traffic moves directly "
             "to the first version rather than through a canary.",
         )
         await self._transition(
-            deployment_id, DeploymentState.CANARY,
+            deployment_id,
+            DeploymentState.CANARY,
             message="Initial release: routing 100% of traffic to the first version.",
         )
-        await self._adapter.set_traffic_weights(
-            service_name, env_name, {candidate.release_id: 100}
-        )
+        await self._adapter.set_traffic_weights(service_name, env_name, {candidate.release_id: 100})
         await self._update_step(deployment_id, 0, 100)
         await self._transition(
-            deployment_id, DeploymentState.PROMOTING,
+            deployment_id,
+            DeploymentState.PROMOTING,
             message="Confirming the initial release is serving.",
         )
         if not await self._verify_serving(
@@ -892,7 +954,8 @@ class DeploymentController:
             raise RolloutAborted("Initial release is not serving traffic.")
         await self._mark_stable(deployment_id, service_id, artifact.id, candidate)
         await self._transition(
-            deployment_id, DeploymentState.SUCCEEDED,
+            deployment_id,
+            DeploymentState.SUCCEEDED,
             message=f"Initial release {candidate.version} is live.",
             kind="promoted",
         )
@@ -910,8 +973,10 @@ class DeploymentController:
             if deployment is not None:
                 deployment.failure_reason = reason[:4000]
         await self._transition(
-            deployment_id, DeploymentState.FAILED,
-            message=reason, kind="deployment_failed",
+            deployment_id,
+            DeploymentState.FAILED,
+            message=reason,
+            kind="deployment_failed",
         )
 
 

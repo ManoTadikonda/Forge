@@ -45,7 +45,9 @@ def _slug(url: str) -> tuple[str, str]:
 
 
 @router.post(
-    "", response_model=RepositoryOut, status_code=status.HTTP_201_CREATED,
+    "",
+    response_model=RepositoryOut,
+    status_code=status.HTTP_201_CREATED,
     summary="Register a repository",
 )
 async def create_repository(
@@ -55,21 +57,15 @@ async def create_repository(
     user: Annotated[CurrentUserDep, Depends(require(Permission.REPO_WRITE))],
 ) -> RepositoryOut:
     settings = request.app.state.settings
-    await enforce_rate_limit(
-        request, "repo_write", limit=settings.rate_limit_write_per_minute
-    )
+    await enforce_rate_limit(request, "repo_write", limit=settings.rate_limit_write_per_minute)
     # Raises UnsafeUrlError (422) for non-HTTPS schemes, embedded credentials, and
     # any host resolving into loopback/private/link-local/metadata ranges.
     validate_repo_url(payload.url, resolve=True)
 
     slug, derived = _slug(payload.url)
-    existing = await session.scalar(
-        select(Repository.id).where(Repository.slug == slug)
-    )
+    existing = await session.scalar(select(Repository.id).where(Repository.slug == slug))
     if existing is not None:
-        raise ConflictError(
-            "This repository is already registered.", details={"slug": slug}
-        )
+        raise ConflictError("This repository is already registered.", details={"slug": slug})
 
     repository = Repository(
         id=uuid.uuid4(),
@@ -83,8 +79,12 @@ async def create_repository(
     session.add(repository)
     await session.flush()
     await record_audit(
-        session, action="repository.create", actor_id=user.id, actor_label=user.email,
-        resource_type="repository", resource_id=str(repository.id),
+        session,
+        action="repository.create",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="repository",
+        resource_id=str(repository.id),
         detail={"url": payload.url, "slug": slug},
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
@@ -114,11 +114,7 @@ async def list_repositories(
             )
         )
 
-    total = int(
-        await session.scalar(
-            select(func.count(Repository.id)).where(*conditions)
-        ) or 0
-    )
+    total = int(await session.scalar(select(func.count(Repository.id)).where(*conditions)) or 0)
     rows = (
         await session.execute(
             select(Repository)
@@ -130,7 +126,9 @@ async def list_repositories(
     ).scalars()
     return Page(
         items=[RepositoryOut.model_validate(r) for r in rows],
-        total=total, limit=limit, offset=offset,
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -146,10 +144,9 @@ async def get_repository(
 
     count = int(
         await session.scalar(
-            select(func.count(PipelineRun.id)).where(
-                PipelineRun.repository_id == repository_id
-            )
-        ) or 0
+            select(func.count(PipelineRun.id)).where(PipelineRun.repository_id == repository_id)
+        )
+        or 0
     )
     recent = (
         await session.execute(
@@ -167,7 +164,8 @@ async def get_repository(
 
 
 @router.delete(
-    "/{repository_id}", status_code=status.HTTP_204_NO_CONTENT,
+    "/{repository_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove a repository",
 )
 async def delete_repository(
@@ -195,8 +193,12 @@ async def delete_repository(
         .values(repository_label=repository.slug)
     )
     await record_audit(
-        session, action="repository.delete", actor_id=user.id, actor_label=user.email,
-        resource_type="repository", resource_id=str(repository_id),
+        session,
+        action="repository.delete",
+        actor_id=user.id,
+        actor_label=user.email,
+        resource_type="repository",
+        resource_id=str(repository_id),
         detail={"slug": repository.slug, "mode": "deactivated_history_retained"},
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),

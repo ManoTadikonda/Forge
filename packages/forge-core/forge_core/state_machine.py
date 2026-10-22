@@ -93,9 +93,7 @@ JOB_MACHINE: StateMachine[JobState] = StateMachine(
     {
         # A job returns to PENDING when a retry is scheduled or a lease expires.
         _J.PENDING: frozenset({_J.RUNNING, _J.CANCELED, _J.DEAD_LETTER}),
-        _J.RUNNING: frozenset(
-            {_J.SUCCEEDED, _J.FAILED, _J.PENDING, _J.CANCELED, _J.DEAD_LETTER}
-        ),
+        _J.RUNNING: frozenset({_J.SUCCEEDED, _J.FAILED, _J.PENDING, _J.CANCELED, _J.DEAD_LETTER}),
         _J.FAILED: frozenset({_J.PENDING, _J.DEAD_LETTER}),
         _J.SUCCEEDED: frozenset(),
         _J.CANCELED: frozenset(),

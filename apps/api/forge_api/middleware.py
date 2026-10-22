@@ -42,9 +42,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         # bound its length — it ends up in logs.
         incoming = (request.headers.get(REQUEST_ID_HEADER) or "")[:64]
         request_id = incoming or str(uuid.uuid4())
-        correlation_id = (
-            request.headers.get(CORRELATION_ID_HEADER) or request_id
-        )[:64]
+        correlation_id = (request.headers.get(CORRELATION_ID_HEADER) or request_id)[:64]
         request.state.request_id = request_id
         request.state.correlation_id = correlation_id
 
@@ -60,8 +58,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             route = request.scope.get("route")
             template = getattr(route, "path", request.url.path)
             observe_http_request(
-                method=request.method, path=template,
-                status=status_code, duration_seconds=duration_ms / 1000,
+                method=request.method,
+                path=template,
+                status=status_code,
+                duration_seconds=duration_ms / 1000,
             )
             logger.info(
                 "http_request",

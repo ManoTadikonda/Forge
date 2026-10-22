@@ -185,9 +185,7 @@ async def run_command(
     duration_ms = int((loop.time() - started) * 1000)
     output = collected.decode("utf-8", errors="replace")
     if truncated:
-        output += (
-            f"\n[forge] output truncated at {limits.max_output_bytes} bytes.\n"
-        )
+        output += f"\n[forge] output truncated at {limits.max_output_bytes} bytes.\n"
     if timed_out:
         output += f"\n[forge] command exceeded {limits.timeout_seconds}s and was killed.\n"
 

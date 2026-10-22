@@ -62,8 +62,9 @@ class RoutingTable:
             route.balancer.set_weights(weights)
             return route
 
-    def set_weights(self, service: str, environment: str,
-                    weights: Mapping[str, int]) -> ServiceRoute | None:
+    def set_weights(
+        self, service: str, environment: str, weights: Mapping[str, int]
+    ) -> ServiceRoute | None:
         with self._lock:
             route = self._routes.get(route_key(service, environment))
         if route is None:

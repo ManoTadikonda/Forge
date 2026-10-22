@@ -134,9 +134,7 @@ def generate_sbom(
                 "type": "application",
                 "name": image_name,
                 "version": version,
-                "hashes": [
-                    {"alg": "SHA-256", "content": digest.split(":", 1)[-1]}
-                ],
+                "hashes": [{"alg": "SHA-256", "content": digest.split(":", 1)[-1]}],
                 "properties": [
                     {"name": "forge:repository", "value": repository_url},
                     {"name": "forge:commit", "value": commit_sha},

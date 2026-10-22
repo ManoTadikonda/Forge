@@ -1,0 +1,42 @@
+# Image for the API, the worker and migrations: one image, three commands.
+#
+# STATUS: not built or run — the development environment has no container runtime.
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# git is required to check out repositories; the rest is build tooling only.
+RUN apt-get update \
+ && apt-get install --no-install-recommends -y git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Dependencies first, so a source change does not invalidate the layer.
+COPY requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+COPY packages/forge-core ./packages/forge-core
+COPY apps/api ./apps/api
+COPY apps/worker ./apps/worker
+COPY apps/router ./apps/router
+COPY apps/sample-service ./apps/sample-service
+
+RUN pip install --no-cache-dir \
+      ./packages/forge-core ./apps/api ./apps/worker ./apps/router
+
+# Unprivileged runtime user; the image carries no secrets.
+RUN groupadd --gid 10001 forge \
+ && useradd --uid 10001 --gid forge --no-create-home --shell /usr/sbin/nologin forge \
+ && mkdir -p /var/lib/forge && chown -R forge:forge /var/lib/forge
+
+ENV FORGE_WORKSPACE_ROOT=/var/lib/forge/workspaces \
+    FORGE_ARTIFACT_ROOT=/var/lib/forge/artifacts \
+    FORGE_LOG_ROOT=/var/lib/forge/logs
+
+USER forge
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "forge_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

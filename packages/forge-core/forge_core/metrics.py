@@ -60,9 +60,7 @@ ACTIVE_DEPLOYMENTS = Gauge(
 )
 
 
-def observe_http_request(
-    *, method: str, path: str, status: int, duration_seconds: float
-) -> None:
+def observe_http_request(*, method: str, path: str, status: int, duration_seconds: float) -> None:
     HTTP_REQUESTS.labels(method=method, route=path, status=str(status)).inc()
     HTTP_LATENCY.labels(method=method, route=path).observe(duration_seconds)
 

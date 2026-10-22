@@ -80,23 +80,17 @@ class TestTokens:
         assert decoded.jti == claims.jti
 
     def test_token_signed_with_another_key_is_rejected(self) -> None:
-        token, _ = create_access_token(
-            subject="u", role="VIEWER", secret=SECRET, ttl_seconds=60
-        )
+        token, _ = create_access_token(subject="u", role="VIEWER", secret=SECRET, ttl_seconds=60)
         with pytest.raises(AuthenticationError):
             decode_access_token(token, secret="b" * 48)
 
     def test_expired_token_is_rejected(self) -> None:
-        token, _ = create_access_token(
-            subject="u", role="VIEWER", secret=SECRET, ttl_seconds=-1
-        )
+        token, _ = create_access_token(subject="u", role="VIEWER", secret=SECRET, ttl_seconds=-1)
         with pytest.raises(AuthenticationError, match="expired"):
             decode_access_token(token, secret=SECRET)
 
     def test_tampered_token_is_rejected(self) -> None:
-        token, _ = create_access_token(
-            subject="u", role="VIEWER", secret=SECRET, ttl_seconds=60
-        )
+        token, _ = create_access_token(subject="u", role="VIEWER", secret=SECRET, ttl_seconds=60)
         head, payload, signature = token.split(".")
         with pytest.raises(AuthenticationError):
             decode_access_token(f"{head}.{payload}x.{signature}", secret=SECRET)
@@ -108,9 +102,7 @@ class TestTokens:
     def test_each_token_has_a_unique_jti(self) -> None:
         """Unique ids are what make individual sessions revocable."""
         ids = {
-            create_access_token(
-                subject="u", role="VIEWER", secret=SECRET, ttl_seconds=60
-            )[1].jti
+            create_access_token(subject="u", role="VIEWER", secret=SECRET, ttl_seconds=60)[1].jti
             for _ in range(20)
         }
         assert len(ids) == 20
@@ -161,10 +153,14 @@ class TestWebhookSignatures:
 class TestAuthorization:
     def test_viewer_is_read_only(self) -> None:
         for permission in (
-            Permission.REPO_WRITE, Permission.REPO_DELETE,
-            Permission.PIPELINE_TRIGGER, Permission.DEPLOYMENT_CREATE,
-            Permission.DEPLOYMENT_ROLLBACK, Permission.USER_MANAGE,
-            Permission.SETTINGS_WRITE, Permission.AUDIT_READ,
+            Permission.REPO_WRITE,
+            Permission.REPO_DELETE,
+            Permission.PIPELINE_TRIGGER,
+            Permission.DEPLOYMENT_CREATE,
+            Permission.DEPLOYMENT_ROLLBACK,
+            Permission.USER_MANAGE,
+            Permission.SETTINGS_WRITE,
+            Permission.AUDIT_READ,
         ):
             assert not has_permission(Role.VIEWER, permission)
         assert has_permission(Role.VIEWER, Permission.REPO_READ)

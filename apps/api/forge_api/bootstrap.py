@@ -34,14 +34,15 @@ async def ensure_environments(session: AsyncSession) -> int:
     """Create the default environments if they are absent. Idempotent."""
     created = 0
     for name, display, protected in DEFAULT_ENVIRONMENTS:
-        exists = await session.scalar(
-            select(Environment.id).where(Environment.name == name)
-        )
+        exists = await session.scalar(select(Environment.id).where(Environment.name == name))
         if exists is None:
             session.add(
                 Environment(
-                    id=uuid.uuid4(), name=name, display_name=display,
-                    is_protected=protected, config={},
+                    id=uuid.uuid4(),
+                    name=name,
+                    display_name=display,
+                    is_protected=protected,
+                    config={},
                 )
             )
             created += 1

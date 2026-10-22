@@ -122,7 +122,10 @@ async def clone_https(
         destination.mkdir(parents=True, exist_ok=True)
         with isolated_git_environment():
             porcelain.clone(
-                url, target=str(destination), depth=depth, checkout=True,
+                url,
+                target=str(destination),
+                depth=depth,
+                checkout=True,
                 branch=branch.encode() if branch else None,
             )
 
@@ -130,8 +133,7 @@ async def clone_https(
         await asyncio.to_thread(_clone)
     except Exception as exc:
         raise ValidationError(
-            f"Could not clone the repository on branch {branch!r}: "
-            f"{type(exc).__name__}."
+            f"Could not clone the repository on branch {branch!r}: {type(exc).__name__}."
         ) from exc
 
     sha, message, author = await asyncio.to_thread(_head_details, destination, branch)
@@ -139,9 +141,7 @@ async def clone_https(
     return CheckoutResult(destination, sha, message, author, branch)
 
 
-async def clone_local(
-    url: str, destination: Path, *, branch: str = "main"
-) -> CheckoutResult:
+async def clone_local(url: str, destination: Path, *, branch: str = "main") -> CheckoutResult:
     """Clone the bundled demo repository from a local path.
 
     Only reachable via the operator seed command; the API rejects non-HTTPS URLs.
@@ -177,9 +177,7 @@ async def checkout(
     scheme = urlsplit(url).scheme.lower()
     if scheme == "file":
         if not allow_local:
-            raise ValidationError(
-                "Local repository paths are not permitted for this repository."
-            )
+            raise ValidationError("Local repository paths are not permitted for this repository.")
         return await clone_local(url, destination, branch=branch)
     return await clone_https(url, destination, branch=branch)
 

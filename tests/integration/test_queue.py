@@ -23,7 +23,10 @@ Maker = async_sessionmaker[AsyncSession]
 async def _enqueue(maker: Maker, key: str, **kwargs: object) -> object:
     async with maker() as session, session.begin():
         return await queue.enqueue(
-            session, kind=JobKind.RUN_PIPELINE, dedupe_key=key, **kwargs  # type: ignore[arg-type]
+            session,
+            kind=JobKind.RUN_PIPELINE,
+            dedupe_key=key,
+            **kwargs,  # type: ignore[arg-type]
         )
 
 
@@ -36,9 +39,7 @@ class TestEnqueue:
     async def test_enqueue_returns_an_id(self, sessionmaker_fixture: Maker) -> None:
         assert await _enqueue(sessionmaker_fixture, "job:1") is not None
 
-    async def test_duplicate_dedupe_key_is_suppressed(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_duplicate_dedupe_key_is_suppressed(self, sessionmaker_fixture: Maker) -> None:
         """Enqueuing the same logical work twice must not create two jobs."""
         first = await _enqueue(sessionmaker_fixture, "job:1")
         second = await _enqueue(sessionmaker_fixture, "job:1")
@@ -52,9 +53,7 @@ class TestEnqueue:
         maker = sessionmaker_fixture
         try:
             async with maker() as session, session.begin():
-                await queue.enqueue(
-                    session, kind=JobKind.RUN_PIPELINE, dedupe_key="rollback:1"
-                )
+                await queue.enqueue(session, kind=JobKind.RUN_PIPELINE, dedupe_key="rollback:1")
                 raise RuntimeError("caller failed after enqueueing")
         except RuntimeError:
             pass
@@ -76,28 +75,20 @@ class TestClaiming:
     async def test_empty_queue_returns_none(self, sessionmaker_fixture: Maker) -> None:
         assert await _claim(sessionmaker_fixture, "w1") is None
 
-    async def test_concurrent_workers_never_double_claim(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_concurrent_workers_never_double_claim(self, sessionmaker_fixture: Maker) -> None:
         """The core guarantee: SKIP LOCKED gives each job to exactly one worker."""
         for index in range(8):
             await _enqueue(sessionmaker_fixture, f"job:{index}")
 
-        results = await asyncio.gather(
-            *(_claim(sessionmaker_fixture, f"w{n}") for n in range(16))
-        )
+        results = await asyncio.gather(*(_claim(sessionmaker_fixture, f"w{n}") for n in range(16)))
         claimed = [job.dedupe_key for job in results if job is not None]
         assert len(claimed) == 8, "every job should be claimed exactly once"
         assert len(set(claimed)) == 8, "no job may be claimed twice"
 
-    async def test_future_jobs_are_not_claimed(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_future_jobs_are_not_claimed(self, sessionmaker_fixture: Maker) -> None:
         await _enqueue(sessionmaker_fixture, "later:1")
         async with sessionmaker_fixture() as session, session.begin():
-            await session.execute(
-                text("UPDATE jobs SET available_at = now() + interval '1 hour'")
-            )
+            await session.execute(text("UPDATE jobs SET available_at = now() + interval '1 hour'"))
         assert await _claim(sessionmaker_fixture, "w1") is None
 
     async def test_priority_orders_claims(self, sessionmaker_fixture: Maker) -> None:
@@ -116,9 +107,7 @@ class TestClaiming:
         assert claimed is not None
         assert claimed.kind is JobKind.RUN_DEPLOYMENT
 
-    async def test_cancelled_jobs_are_not_claimed(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_cancelled_jobs_are_not_claimed(self, sessionmaker_fixture: Maker) -> None:
         maker = sessionmaker_fixture
         await _enqueue(maker, "cancel:1")
         async with maker() as session, session.begin():
@@ -127,9 +116,7 @@ class TestClaiming:
 
 
 class TestLeasesAndFencing:
-    async def test_expired_lease_is_reclaimed(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_expired_lease_is_reclaimed(self, sessionmaker_fixture: Maker) -> None:
         """This is crash recovery: a dead worker's job returns to the queue."""
         maker = sessionmaker_fixture
         await _enqueue(maker, "job:1", max_attempts=5)
@@ -148,9 +135,7 @@ class TestLeasesAndFencing:
         assert second is not None
         assert second.fence_token > first.fence_token
 
-    async def test_stale_worker_is_fenced_out(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_stale_worker_is_fenced_out(self, sessionmaker_fixture: Maker) -> None:
         """A resurrected worker must not act on authority it no longer holds."""
         maker = sessionmaker_fixture
         await _enqueue(maker, "job:1", max_attempts=5)
@@ -167,9 +152,7 @@ class TestLeasesAndFencing:
             with pytest.raises(FencedError):
                 await queue.assert_fence(session, stale)
 
-    async def test_stale_heartbeat_is_rejected(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_stale_heartbeat_is_rejected(self, sessionmaker_fixture: Maker) -> None:
         maker = sessionmaker_fixture
         await _enqueue(maker, "job:1", max_attempts=5)
         stale = await _claim(maker, "w-old")
@@ -184,17 +167,13 @@ class TestLeasesAndFencing:
         async with maker() as session, session.begin():
             assert not await queue.heartbeat(session, stale, worker_id="w-old")
 
-    async def test_heartbeat_extends_the_lease(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_heartbeat_extends_the_lease(self, sessionmaker_fixture: Maker) -> None:
         maker = sessionmaker_fixture
         await _enqueue(maker, "job:1")
         claimed = await _claim(maker, "w1", lease_seconds=5)
         assert claimed is not None
         async with maker() as session, session.begin():
-            assert await queue.heartbeat(
-                session, claimed, worker_id="w1", lease_seconds=600
-            )
+            assert await queue.heartbeat(session, claimed, worker_id="w1", lease_seconds=600)
         async with maker() as session, session.begin():
             assert await queue.reclaim_expired(session) == 0
 
@@ -239,14 +218,10 @@ class TestOutcomes:
         claimed = await _claim(maker, "w1")
         assert claimed is not None
         async with maker() as session, session.begin():
-            result = await queue.fail(
-                session, claimed, error="unrecoverable", retryable=False
-            )
+            result = await queue.fail(session, claimed, error="unrecoverable", retryable=False)
         assert result is JobState.DEAD_LETTER
 
-    async def test_failure_message_is_redacted(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_failure_message_is_redacted(self, sessionmaker_fixture: Maker) -> None:
         """Job errors are shown in the dashboard, so they must not leak secrets."""
         maker = sessionmaker_fixture
         await _enqueue(maker, "job:1")
@@ -270,9 +245,7 @@ class TestOutcomes:
             state = await session.scalar(text("SELECT state FROM jobs LIMIT 1"))
         assert state == JobState.SUCCEEDED.value
 
-    async def test_queue_depth_counts_every_state(
-        self, sessionmaker_fixture: Maker
-    ) -> None:
+    async def test_queue_depth_counts_every_state(self, sessionmaker_fixture: Maker) -> None:
         maker = sessionmaker_fixture
         await _enqueue(maker, "a")
         await _enqueue(maker, "b")
@@ -294,7 +267,5 @@ class TestOutcomes:
             # Second call changes nothing and must not raise.
             await queue.request_cancel(session, "job:1")
         async with maker() as session:
-            count = await session.scalar(
-                text("SELECT COUNT(*) FROM jobs WHERE cancel_requested")
-            )
+            count = await session.scalar(text("SELECT COUNT(*) FROM jobs WHERE cancel_requested"))
         assert count == 1

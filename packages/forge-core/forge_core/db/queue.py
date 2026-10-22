@@ -350,9 +350,7 @@ async def reclaim_expired(session: AsyncSession, *, limit: int = 50) -> int:
 
 async def queue_depth(session: AsyncSession) -> dict[str, int]:
     """Counts per state, for the metrics endpoint and the dashboard."""
-    rows = await session.execute(
-        text("SELECT state, COUNT(*) AS n FROM jobs GROUP BY state")
-    )
+    rows = await session.execute(text("SELECT state, COUNT(*) AS n FROM jobs GROUP BY state"))
     counts = {state.value: 0 for state in JobState}
     for row in rows.mappings():
         counts[row["state"]] = row["n"]
