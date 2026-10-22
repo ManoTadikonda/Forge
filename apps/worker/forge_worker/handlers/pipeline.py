@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import tomllib
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -128,6 +130,31 @@ class PipelineRunner:
             if stage.started_at is not None:
                 stage.duration_ms = int((now - stage.started_at).total_seconds() * 1000)
 
+    async def _fail_open_stages(self, run_id: uuid.UUID, reason: str) -> None:
+        """Close out any stage still marked RUNNING.
+
+        Without this a crashed or failed run leaves a stage showing as in progress
+        forever, which misrepresents what happened in the dashboard.
+        """
+        async with self._sessionmaker() as session, session.begin():
+            rows = (
+                await session.execute(
+                    select(PipelineStage).where(
+                        PipelineStage.run_id == run_id,
+                        PipelineStage.status == StageStatus.RUNNING.value,
+                    )
+                )
+            ).scalars()
+            now = datetime.now(UTC)
+            for stage in rows:
+                stage.status = StageStatus.FAILED.value
+                stage.message = reason[:4000]
+                stage.finished_at = now
+                if stage.started_at is not None:
+                    stage.duration_ms = int(
+                        (now - stage.started_at).total_seconds() * 1000
+                    )
+
     async def _log(self, run_id: uuid.UUID, stage: StageName, content: str) -> None:
         async with self._sessionmaker() as session, session.begin():
             await append_log(
@@ -174,17 +201,20 @@ class PipelineRunner:
                 run_id, repo_url, branch, workspace, allow_local=allow_local
             )
         except PipelineCancelled as cancelled:
+            await self._fail_open_stages(run_id, "Cancelled by an operator.")
             await self._transition(
                 run_id, PipelineState.CANCELED, reason=str(cancelled)
             )
             return PipelineState.CANCELED
         except (ValidationError, BuildError) as known:
-            await self._transition(run_id, PipelineState.FAILED, reason=known.message)
+            await self._fail_open_stages(run_id, known.message)
             await self._log(run_id, StageName.CLONE, f"\n[forge] {known.message}\n")
+            await self._transition(run_id, PipelineState.FAILED, reason=known.message)
             return PipelineState.FAILED
         except Exception as exc:
             reason = f"{type(exc).__name__}: {exc}"
             logger.exception("pipeline_failed", pipeline_id=str(run_id))
+            await self._fail_open_stages(run_id, reason)
             await self._transition(run_id, PipelineState.FAILED, reason=reason)
             return PipelineState.FAILED
         finally:
@@ -248,7 +278,7 @@ class PipelineRunner:
         # ----------------------------------------------------------- BUILDING
         await self._transition(run_id, PipelineState.BUILDING)
         stage_id = await self._stage_start(run_id, StageName.BUILD)
-        version = await self._resolve_version(run_id, manifest)
+        version = await self._resolve_version(run_id, workspace)
         build_result = await self._builder.build(
             BuildRequest(
                 workspace=workspace,
@@ -360,9 +390,12 @@ class PipelineRunner:
                     f"Check {check.name!r} escapes the workspace directory."
                 )
             outcome = await run_command(
-                check.run, cwd=cwd,
-                limits=SandboxLimits(**{**limits.__dict__,
-                                        "timeout_seconds": check.timeout_seconds}),
+                check.run,
+                cwd=cwd,
+                # Per-step timeout overrides the pipeline default; every other
+                # limit is inherited.
+                limits=replace(limits, timeout_seconds=check.timeout_seconds),
+                toolchain=self._settings.build_toolchain_path,
             )
             header = (
                 f"\n$ {check.display}\n"
@@ -406,11 +439,15 @@ class PipelineRunner:
             ("grype", ["grype", "dir:.", "-o", "json"]),
             ("pip-audit", ["pip-audit", "--format", "json", "--progress-spinner", "off"]),
         ):
-            if resolve_executable(binary) is None:
+            if resolve_executable(
+                binary, toolchain=self._settings.build_toolchain_path
+            ) is None:
                 continue
             outcome = await run_command(
-                argv, cwd=workspace,
+                argv,
+                cwd=workspace,
                 limits=SandboxLimits(timeout_seconds=300, max_output_bytes=1_000_000),
+                toolchain=self._settings.build_toolchain_path,
             )
             return (
                 "PASSED" if outcome.exit_code == 0 else "FINDINGS",
@@ -426,17 +463,35 @@ class PipelineRunner:
         )
 
     async def _resolve_version(
-        self, run_id: uuid.UUID, manifest: PipelineManifest
+        self, run_id: uuid.UUID, workspace: Path
     ) -> str:
-        """Version for this build: explicit override, else run-number derived."""
+        """Determine the version being built.
+
+        The version belongs to the source, not to the CI system, so it is read from
+        the project's own metadata. The run number is only a fallback for projects
+        that declare no version, and is suffixed so two different sources can never
+        collide on one version string.
+        """
+
+        def _from_pyproject() -> str:
+            candidate = workspace / "pyproject.toml"
+            if not candidate.is_file():
+                return ""
+            try:
+                data = tomllib.loads(candidate.read_text(encoding="utf-8"))
+            except (tomllib.TOMLDecodeError, OSError):
+                return ""
+            version = data.get("project", {}).get("version", "")
+            return str(version) if isinstance(version, str) else ""
+
+        declared = await asyncio.to_thread(_from_pyproject)
+        if declared:
+            return declared
+
         async with self._sessionmaker() as session:
             run = await session.get(PipelineRun, run_id)
-            if run is None:
-                return "0.0.0"
-            configured = (run.manifest or {}).get("version_override") if run.manifest else None
-            if isinstance(configured, str) and configured:
-                return configured
-            return f"1.0.{run.run_number}"
+            number = run.run_number if run is not None else 0
+        return f"0.0.0+run{number}"
 
     async def _record_artifact(
         self, run_id: uuid.UUID, build_result: Any, published: Any,

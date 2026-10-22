@@ -14,7 +14,11 @@ Two code paths, deliberately separated:
 from __future__ import annotations
 
 import asyncio
+import os
 import shutil
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -27,6 +31,59 @@ from forge_core.logging import get_logger
 from forge_core.urlguard import assert_resolved_addresses_allowed, validate_repo_url
 
 logger = get_logger("forge.checkout")
+
+#: Identity used for Forge's own git operations.
+_FORGE_IDENTITY = {
+    "GIT_AUTHOR_NAME": "Forge",
+    "GIT_AUTHOR_EMAIL": "forge@localhost",
+    "GIT_COMMITTER_NAME": "Forge",
+    "GIT_COMMITTER_EMAIL": "forge@localhost",
+}
+
+_FORGE_GITCONFIG = """[user]
+\tname = Forge
+\temail = forge@localhost
+[safe]
+\tdirectory = *
+"""
+
+
+@contextmanager
+def isolated_git_environment() -> Iterator[None]:
+    """Run git operations against a Forge-owned configuration.
+
+    Checkout must not read the host user's git configuration. Two reasons:
+
+    * Correctness — a malformed or unusual global config (a stray newline in
+      ``user.email``, for instance) would otherwise fail every build on that host.
+    * Isolation — a build system has no business inheriting a developer's identity,
+      credential helpers, URL rewrites or hooks from ``~/.gitconfig``.
+
+    ``GIT_CONFIG_GLOBAL`` redirects the global config to a file Forge writes, and
+    ``GIT_CONFIG_NOSYSTEM`` suppresses ``/etc/gitconfig``.
+    """
+    with tempfile.TemporaryDirectory(prefix="forge-git-") as directory:
+        config_path = Path(directory) / "gitconfig"
+        config_path.write_text(_FORGE_GITCONFIG, encoding="utf-8")
+
+        overrides = {
+            **_FORGE_IDENTITY,
+            "GIT_CONFIG_GLOBAL": str(config_path),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            # Belt and braces: anything resolving paths from HOME lands here too.
+            "HOME": directory,
+            "XDG_CONFIG_HOME": directory,
+        }
+        previous = {key: os.environ.get(key) for key in overrides}
+        os.environ.update(overrides)
+        try:
+            yield
+        finally:
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,10 +120,11 @@ async def clone_https(
 
     def _clone() -> None:
         destination.mkdir(parents=True, exist_ok=True)
-        porcelain.clone(
-            url, target=str(destination), depth=depth, checkout=True,
-            branch=branch.encode() if branch else None,
-        )
+        with isolated_git_environment():
+            porcelain.clone(
+                url, target=str(destination), depth=depth, checkout=True,
+                branch=branch.encode() if branch else None,
+            )
 
     try:
         await asyncio.to_thread(_clone)
@@ -97,7 +155,8 @@ async def clone_local(
         if not source.exists():
             raise ValidationError(f"Local repository {source} does not exist.")
         destination.mkdir(parents=True, exist_ok=True)
-        porcelain.clone(str(source), target=str(destination), checkout=True)
+        with isolated_git_environment():
+            porcelain.clone(str(source), target=str(destination), checkout=True)
 
     try:
         await asyncio.to_thread(_clone)
@@ -135,4 +194,10 @@ def _strip_vcs_metadata(workspace: Path) -> None:
     shutil.rmtree(workspace / ".git", ignore_errors=True)
 
 
-__all__ = ["CheckoutResult", "checkout", "clone_https", "clone_local"]
+__all__ = [
+    "CheckoutResult",
+    "checkout",
+    "clone_https",
+    "clone_local",
+    "isolated_git_environment",
+]

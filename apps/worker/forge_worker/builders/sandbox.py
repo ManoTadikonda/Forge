@@ -25,6 +25,7 @@ import os
 import resource
 import shutil
 import signal
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,25 @@ from forge_core.redaction import redact_text
 
 #: Environment variables permitted through to a build. Everything else is dropped.
 _ENV_ALLOWLIST = frozenset({"LANG", "LC_ALL", "TZ"})
+
+#: Base PATH for builds. Set explicitly rather than inherited, so a poisoned PATH in
+#: the worker's environment cannot reach a build.
+_SYSTEM_PATH = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+def toolchain_path(extra: str = "") -> str:
+    """PATH exposed to a build.
+
+    The process builder runs manifest-declared tools from the host toolchain, so the
+    directories holding them must be on PATH. Which directories those are is an
+    explicit setting (``FORGE_BUILD_TOOLCHAIN_PATH``) rather than whatever the worker
+    happened to inherit. Defaults to the running interpreter's own bin directory,
+    which is where pytest/ruff live in a virtualenv install.
+    """
+    directories = [d for d in (extra or "").split(os.pathsep) if d]
+    if not directories:
+        directories = [str(Path(sys.executable).parent)]
+    return os.pathsep.join([*directories, _SYSTEM_PATH])
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,12 +78,12 @@ class CommandOutcome:
         return self.exit_code == 0 and not self.timed_out
 
 
-def build_environment(extra: Mapping[str, str] | None = None) -> dict[str, str]:
+def build_environment(
+    extra: Mapping[str, str] | None = None, *, toolchain: str = ""
+) -> dict[str, str]:
     """Construct a minimal environment containing no Forge or host credentials."""
     env = {k: v for k, v in os.environ.items() if k in _ENV_ALLOWLIST}
-    # PATH is required to locate the interpreter/toolchain but is set explicitly
-    # rather than inherited, so a poisoned PATH cannot reach the build.
-    env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    env["PATH"] = toolchain_path(toolchain)
     env["HOME"] = "/tmp"  # noqa: S108 - deliberate: builds get a throwaway HOME
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PIP_DISABLE_PIP_VERSION_CHECK"] = "1"
@@ -92,9 +112,9 @@ def _apply_limits(limits: SandboxLimits) -> None:  # pragma: no cover - child pr
             resource.setrlimit(limit, value)
 
 
-def resolve_executable(name: str) -> str | None:
-    """Locate an allowlisted executable on the sandbox PATH."""
-    return shutil.which(name, path=build_environment()["PATH"]) or shutil.which(name)
+def resolve_executable(name: str, *, toolchain: str = "") -> str | None:
+    """Locate an allowlisted executable on the build PATH."""
+    return shutil.which(name, path=toolchain_path(toolchain))
 
 
 async def run_command(
@@ -103,16 +123,21 @@ async def run_command(
     cwd: Path,
     limits: SandboxLimits,
     env: Mapping[str, str] | None = None,
+    toolchain: str = "",
 ) -> CommandOutcome:
     """Execute ``argv`` under the isolation described in this module's docstring."""
     loop = asyncio.get_running_loop()
     started = loop.time()
 
-    executable = resolve_executable(argv[0])
+    executable = resolve_executable(argv[0], toolchain=toolchain)
     if executable is None:
         return CommandOutcome(
             exit_code=127,
-            output=f"Executable {argv[0]!r} was not found on the build PATH.",
+            output=(
+                f"Executable {argv[0]!r} was not found on the build PATH "
+                f"({toolchain_path(toolchain)}). Install it, or set "
+                f"FORGE_BUILD_TOOLCHAIN_PATH to the directory that provides it."
+            ),
             duration_ms=0,
         )
 
@@ -120,7 +145,7 @@ async def run_command(
         executable,
         *argv[1:],
         cwd=str(cwd),
-        env=build_environment(env),
+        env=build_environment(env, toolchain=toolchain),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         stdin=asyncio.subprocess.DEVNULL,
@@ -192,4 +217,5 @@ __all__ = [
     "build_environment",
     "resolve_executable",
     "run_command",
+    "toolchain_path",
 ]

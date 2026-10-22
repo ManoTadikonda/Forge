@@ -207,7 +207,13 @@ async def get_pipeline(
         await session.execute(
             select(PipelineRun)
             .where(PipelineRun.id == pipeline_id)
-            .options(selectinload(PipelineRun.stages))
+            # Both relationships are eager-loaded: PipelineDetail declares `stages`
+            # and `artifacts`, and pydantic's from_attributes would otherwise trigger
+            # a lazy load inside the async context, which raises MissingGreenlet.
+            .options(
+                selectinload(PipelineRun.stages),
+                selectinload(PipelineRun.artifacts),
+            )
         )
     ).scalar_one_or_none()
     if run is None:

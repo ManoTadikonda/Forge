@@ -443,9 +443,7 @@ class DeploymentController:
     ) -> None:
         plan = self._plan(canary_config)
         thresholds = self._thresholds(canary_config)
-        probe_requests = int(
-            canary_config.get("probe_requests") or max(thresholds.min_samples * 2, 40)
-        )
+        configured_probe = int(canary_config.get("probe_requests") or 0)
         url = (
             f"http://{self._settings.router_public_host}:"
             f"{canary_config.get('router_port', 8098)}/"
@@ -477,6 +475,14 @@ class DeploymentController:
 
             step_started = datetime.now(UTC)
             client = await self._http()
+            # Probe volume must scale with the canary weight: at 10% only a tenth of
+            # requests reach the candidate, so a fixed count would leave it below the
+            # minimum sample threshold and the verdict would be UNKNOWN regardless of
+            # how it is actually behaving. Size the burst so the *candidate* clears
+            # min_samples at this weight.
+            probe_requests = configured_probe or _probe_count_for(
+                weight, thresholds.min_samples
+            )
             sent = await traffic.generate(client, url, count=probe_requests)
             await self._sleep(min(2.0, plan.step_seconds / 4))
 
@@ -904,6 +910,21 @@ class DeploymentController:
             deployment_id, DeploymentState.FAILED,
             message=reason, kind="deployment_failed",
         )
+
+
+#: Headroom over the theoretical minimum, so rounding and in-flight requests cannot
+#: leave the candidate one sample short.
+_PROBE_SAFETY_FACTOR = 1.5
+#: Upper bound so a 1% canary step cannot generate an unbounded burst.
+_MAX_PROBE_REQUESTS = 2000
+
+
+def _probe_count_for(weight: int, min_samples: int) -> int:
+    """Requests to send so a candidate at ``weight`` percent observes ``min_samples``."""
+    if weight <= 0:
+        return min_samples
+    required = (min_samples * 100.0) / weight
+    return int(min(_MAX_PROBE_REQUESTS, max(min_samples, required * _PROBE_SAFETY_FACTOR)))
 
 
 def _as_float(value: Any) -> float | None:

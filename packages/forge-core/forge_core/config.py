@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     #: The process builder is not a kernel sandbox. It refuses to run unless this
     #: is explicitly set, so the weaker isolation mode is never entered by accident.
     allow_unsandboxed_builds: bool = False
+    #: Directories prepended to the build PATH so manifest-declared tools (pytest,
+    #: ruff, npm...) can be found. The process builder shares the host toolchain —
+    #: this makes exactly which directories are exposed explicit and auditable
+    #: rather than implicit. Empty means "the interpreter's own bin directory".
+    build_toolchain_path: str = ""
     builder: Literal["process", "buildkit"] = "process"
     registry: Literal["local", "ecr"] = "local"
     deploy_adapter: Literal["process", "docker"] = "process"
