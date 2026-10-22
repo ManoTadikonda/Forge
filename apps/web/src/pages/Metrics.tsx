@@ -7,10 +7,13 @@ import {
 } from '@/components/primitives'
 import { formatDuration, formatPercent } from '@/lib/format'
 
-const AXIS = { stroke: '#64708a', fontSize: 11 }
+// Shared theme tokens, same as HealthChart — see index.css.
+const AXIS = { stroke: 'rgb(var(--ink-faint))', fontSize: 11 }
+const GRID = 'rgb(var(--surface-border))'
 const TOOLTIP_STYLE = {
-  backgroundColor: '#121722',
-  border: '1px solid #232b3b',
+  backgroundColor: 'rgb(var(--surface-raised))',
+  border: '1px solid rgb(var(--surface-border))',
+  color: 'rgb(var(--ink))',
   borderRadius: 6,
   fontSize: 12,
 }
@@ -34,8 +37,16 @@ export function MetricsPage() {
   }))
 
   const outcomes = [
-    { name: 'Succeeded', value: overview.stats.deployments_succeeded, fill: '#3ecf8e' },
-    { name: 'Rolled back', value: overview.stats.deployments_rolled_back, fill: '#f5a623' },
+    {
+      name: 'Succeeded',
+      value: overview.stats.deployments_succeeded,
+      fill: 'rgb(var(--ok))',
+    },
+    {
+      name: 'Rolled back',
+      value: overview.stats.deployments_rolled_back,
+      fill: 'rgb(var(--warn))',
+    },
     {
       name: 'Other',
       value: Math.max(
@@ -44,7 +55,7 @@ export function MetricsPage() {
           overview.stats.deployments_succeeded -
           overview.stats.deployments_rolled_back,
       ),
-      fill: '#64708a',
+      fill: 'rgb(var(--ink-faint))',
     },
   ].filter((entry) => entry.value > 0)
 
@@ -112,18 +123,22 @@ export function MetricsPage() {
             <div className="p-4">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={durations} margin={{ top: 4, right: 8, left: -16 }}>
-                  <CartesianGrid stroke="#232b3b" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
                   <XAxis dataKey="label" {...AXIS} />
                   <YAxis {...AXIS} />
                   <Tooltip
                     contentStyle={TOOLTIP_STYLE}
                     formatter={(value: number) => [`${value}s`, 'Duration']}
                   />
-                  <Bar dataKey="duration" radius={[3, 3, 0, 0]}>
+                  <Bar dataKey="duration" radius={[3, 3, 0, 0]} isAnimationActive={false}>
                     {durations.map((entry) => (
                       <Cell
                         key={entry.index}
-                        fill={entry.failed ? '#ff5c5c' : '#4c8dff'}
+                        fill={
+                          entry.failed
+                            ? 'rgb(var(--danger))'
+                            : 'rgb(var(--accent))'
+                        }
                       />
                     ))}
                   </Bar>
@@ -152,11 +167,11 @@ export function MetricsPage() {
                   layout="vertical"
                   margin={{ top: 4, right: 16, left: 24 }}
                 >
-                  <CartesianGrid stroke="#232b3b" strokeDasharray="3 3" />
+                  <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
                   <XAxis type="number" {...AXIS} allowDecimals={false} />
                   <YAxis type="category" dataKey="name" width={88} {...AXIS} />
                   <Tooltip contentStyle={TOOLTIP_STYLE} />
-                  <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+                  <Bar dataKey="value" radius={[0, 3, 3, 0]} isAnimationActive={false}>
                     {outcomes.map((entry) => (
                       <Cell key={entry.name} fill={entry.fill} />
                     ))}

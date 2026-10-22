@@ -4,28 +4,42 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // Every colour resolves through a CSS variable defined in index.css, so the
+      // palette has one source of truth and the theme can be swapped without
+      // touching a component. `<alpha-value>` keeps utilities like
+      // `border-ok/30` working.
       colors: {
-        // A restrained palette: one accent, neutral surfaces, and semantic
-        // colours reserved for state so they keep their meaning.
         surface: {
-          DEFAULT: '#0b0e14',
-          raised: '#121722',
-          overlay: '#1a2130',
-          border: '#232b3b',
+          DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
+          raised: 'rgb(var(--surface-raised) / <alpha-value>)',
+          overlay: 'rgb(var(--surface-overlay) / <alpha-value>)',
+          border: 'rgb(var(--surface-border) / <alpha-value>)',
         },
         ink: {
-          DEFAULT: '#e6eaf2',
-          muted: '#95a0b5',
-          faint: '#64708a',
+          DEFAULT: 'rgb(var(--ink) / <alpha-value>)',
+          muted: 'rgb(var(--ink-muted) / <alpha-value>)',
+          faint: 'rgb(var(--ink-faint) / <alpha-value>)',
         },
         accent: {
-          DEFAULT: '#4c8dff',
-          soft: '#1e3153',
+          DEFAULT: 'rgb(var(--accent) / <alpha-value>)',
+          soft: 'rgb(var(--accent-soft) / <alpha-value>)',
         },
-        ok: { DEFAULT: '#3ecf8e', soft: '#10291f' },
-        warn: { DEFAULT: '#f5a623', soft: '#2e2412' },
-        danger: { DEFAULT: '#ff5c5c', soft: '#331818' },
-        info: { DEFAULT: '#7aa2f7', soft: '#1a2235' },
+        ok: {
+          DEFAULT: 'rgb(var(--ok) / <alpha-value>)',
+          soft: 'rgb(var(--ok-soft) / <alpha-value>)',
+        },
+        warn: {
+          DEFAULT: 'rgb(var(--warn) / <alpha-value>)',
+          soft: 'rgb(var(--warn-soft) / <alpha-value>)',
+        },
+        danger: {
+          DEFAULT: 'rgb(var(--danger) / <alpha-value>)',
+          soft: 'rgb(var(--danger-soft) / <alpha-value>)',
+        },
+        info: {
+          DEFAULT: 'rgb(var(--info) / <alpha-value>)',
+          soft: 'rgb(var(--info-soft) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],

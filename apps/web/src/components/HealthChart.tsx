@@ -6,8 +6,11 @@ import {
 import type { HealthSample } from '@/lib/types'
 import { EmptyState } from './primitives'
 
-const CANDIDATE = '#f5a623'
-const STABLE = '#3ecf8e'
+// Read the shared theme tokens rather than restating colours here: SVG
+// attributes accept `rgb(var(--x))`, so the charts follow the interface.
+const CANDIDATE = 'rgb(var(--warn))'
+const STABLE = 'rgb(var(--ok))'
+const GRID = 'rgb(var(--surface-border))'
 
 interface Point {
   time: string
@@ -35,10 +38,11 @@ function toPoints(samples: HealthSample[]): Point[] {
   return [...byTime.values()]
 }
 
-const AXIS = { stroke: '#64708a', fontSize: 11 }
+const AXIS = { stroke: 'rgb(var(--ink-faint))', fontSize: 11 }
 const TOOLTIP_STYLE = {
-  backgroundColor: '#121722',
-  border: '1px solid #232b3b',
+  backgroundColor: 'rgb(var(--surface-raised))',
+  border: '1px solid rgb(var(--surface-border))',
+  color: 'rgb(var(--ink))',
   borderRadius: 6,
   fontSize: 12,
 }
@@ -68,18 +72,22 @@ export function HealthChart({
         </figcaption>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-            <CartesianGrid stroke="#232b3b" strokeDasharray="3 3" />
+            <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
             <XAxis dataKey="time" {...AXIS} />
             <YAxis {...AXIS} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Line
               type="monotone" dataKey="stableErrorRate" name="Stable"
-              stroke={STABLE} strokeWidth={2} dot={false} connectNulls
+              stroke={STABLE} strokeWidth={2} connectNulls
+              dot={{ r: 2.5, fill: STABLE, strokeWidth: 0 }}
+              isAnimationActive={false}
             />
             <Line
               type="monotone" dataKey="candidateErrorRate" name="Candidate"
-              stroke={CANDIDATE} strokeWidth={2} dot={false} connectNulls
+              stroke={CANDIDATE} strokeWidth={2} connectNulls
+              dot={{ r: 2.5, fill: CANDIDATE, strokeWidth: 0 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -89,18 +97,22 @@ export function HealthChart({
         <figcaption className="label mb-2">p95 latency (ms)</figcaption>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-            <CartesianGrid stroke="#232b3b" strokeDasharray="3 3" />
+            <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
             <XAxis dataKey="time" {...AXIS} />
             <YAxis {...AXIS} />
             <Tooltip contentStyle={TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Line
               type="monotone" dataKey="stableP95" name="Stable"
-              stroke={STABLE} strokeWidth={2} dot={false} connectNulls
+              stroke={STABLE} strokeWidth={2} connectNulls
+              dot={{ r: 2.5, fill: STABLE, strokeWidth: 0 }}
+              isAnimationActive={false}
             />
             <Line
               type="monotone" dataKey="candidateP95" name="Candidate"
-              stroke={CANDIDATE} strokeWidth={2} dot={false} connectNulls
+              stroke={CANDIDATE} strokeWidth={2} connectNulls
+              dot={{ r: 2.5, fill: CANDIDATE, strokeWidth: 0 }}
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

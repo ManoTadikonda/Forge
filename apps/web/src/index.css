@@ -3,8 +3,65 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Theme tokens.
+   *
+   * Values are space-separated RGB channels rather than hex so Tailwind can
+   * apply alpha to them (`border-ok/30`) and SVG attributes can read them
+   * directly as `rgb(var(--ok))`. Defining them once here is what keeps the
+   * charts from drifting away from the rest of the interface.
+   *
+   * Light is the default. The dark palette is retained under `.dark` — add the
+   * class to <html> to switch back.
+   */
   :root {
+    color-scheme: light;
+
+    --surface: 247 248 250;
+    --surface-raised: 255 255 255;
+    --surface-overlay: 241 243 245;
+    --surface-border: 226 230 235;
+
+    --ink: 17 21 28;
+    --ink-muted: 77 87 101;
+    --ink-faint: 107 116 131;
+
+    --accent: 37 99 235;
+    --accent-soft: 232 240 254;
+
+    --ok: 15 123 79;
+    --ok-soft: 230 246 238;
+    --warn: 154 98 0;
+    --warn-soft: 253 243 226;
+    --danger: 192 38 38;
+    --danger-soft: 253 236 236;
+    --info: 37 99 235;
+    --info-soft: 232 240 254;
+  }
+
+  .dark {
     color-scheme: dark;
+
+    --surface: 11 14 20;
+    --surface-raised: 18 23 34;
+    --surface-overlay: 26 33 48;
+    --surface-border: 35 43 59;
+
+    --ink: 230 234 242;
+    --ink-muted: 149 160 181;
+    --ink-faint: 100 112 138;
+
+    --accent: 76 141 255;
+    --accent-soft: 30 49 83;
+
+    --ok: 62 207 142;
+    --ok-soft: 16 41 31;
+    --warn: 245 166 35;
+    --warn-soft: 46 36 18;
+    --danger: 255 92 92;
+    --danger-soft: 51 24 24;
+    --info: 122 162 247;
+    --info-soft: 26 34 53;
   }
 
   html,
