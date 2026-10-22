@@ -13,12 +13,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.3.3,<9",
-    "pytest-asyncio>=0.24.0,<0.25",
+    "pytest>=9.0.3,<10",
+    "pytest-asyncio>=1.0,<2",
     "pytest-timeout>=2.3.1,<3",
     "httpx>=0.27.2,<0.29",
     "ruff>=0.7.4,<0.15",
-    "mypy>=1.13.0,<2",
+    "mypy>=1.13,<3",
     "types-passlib>=1.7.7.20240819",
     "pgserver>=0.1.4,<0.2",
 ]

@@ -106,7 +106,7 @@ resource "aws_ecr_lifecycle_policy" "artifacts" {
       {
         rulePriority = 1
         description  = "Expire untagged images after 7 days"
-        selection = {
+        selection    = {
           tagStatus   = "untagged"
           countType   = "sinceImagePushed"
           countUnit   = "days"
@@ -117,7 +117,7 @@ resource "aws_ecr_lifecycle_policy" "artifacts" {
       {
         rulePriority = 2
         description  = "Keep the 50 most recent images"
-        selection = {
+        selection    = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
           countNumber = 50

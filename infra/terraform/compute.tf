@@ -162,7 +162,7 @@ resource "aws_ecs_task_definition" "api" {
       # Least privilege inside the container as well as around it.
       readonlyRootFilesystem = true
       user                   = "10001:10001"
-      linuxParameters = {
+      linuxParameters        = {
         initProcessEnabled = true
         tmpfs              = [{ containerPath = "/tmp", size = 64, mountOptions = ["noexec", "nosuid"] }]
       }
@@ -177,7 +177,7 @@ resource "aws_ecs_task_definition" "api" {
 
       logConfiguration = {
         logDriver = "awslogs"
-        options = {
+        options   = {
           "awslogs-group"         = aws_cloudwatch_log_group.main.name
           "awslogs-region"        = var.region
           "awslogs-stream-prefix" = "api"
@@ -210,7 +210,7 @@ resource "aws_ecs_task_definition" "worker" {
 
       logConfiguration = {
         logDriver = "awslogs"
-        options = {
+        options   = {
           "awslogs-group"         = aws_cloudwatch_log_group.main.name
           "awslogs-region"        = var.region
           "awslogs-stream-prefix" = "worker"

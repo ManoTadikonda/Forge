@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Sample HTTP service built and deployed by Forge"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "fastapi>=0.115,<0.120",
+    "fastapi>=0.159.1,<0.160",
     "uvicorn[standard]>=0.32,<0.40",
     "prometheus-client>=0.21,<1",
 ]

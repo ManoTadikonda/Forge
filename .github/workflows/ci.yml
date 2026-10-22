@@ -204,7 +204,10 @@ jobs:
         with:
           terraform_version: "1.10.3"
       - name: Format check
-        run: terraform -chdir=infra/terraform fmt -check -recursive
+        # -diff so a failure prints exactly what to change. Without it the step
+        # only exits 3 and names nothing, which is useless when the toolchain
+        # that produces the canonical formatting is not available locally.
+        run: terraform -chdir=infra/terraform fmt -check -recursive -diff
       - name: Validate
         # -backend=false: validation needs no remote state and no credentials.
         run: |
