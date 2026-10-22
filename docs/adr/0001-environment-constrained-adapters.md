@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-21
+- Revised: 2026-10-21 — Redis and PostgreSQL moved from fallback to verified
 
 ## Context
 
@@ -13,8 +14,20 @@ deployment. The development host used to build and verify this project has:
 
 - No container runtime. `docker`, `podman`, `colima`, `nerdctl` and Docker Desktop are all
   absent, and no package manager (Homebrew/MacPorts) is installed to obtain one.
-- No system PostgreSQL or Redis.
-- No ability to compile arbitrary downloaded source (blocked by host policy).
+- No system PostgreSQL or Redis, and no Terraform binary or AWS credentials.
+
+Two of those gaps turned out to be closable, and were closed rather than worked around:
+
+- **PostgreSQL 16.2** runs as an embedded server via `pgserver`. It is a genuine
+  PostgreSQL, so `SELECT ... FOR UPDATE SKIP LOCKED`, partial indexes, JSONB and CHECK
+  constraints behave exactly as in production — which is what makes the integration
+  tests worth running.
+- **Redis 7.2.5** builds from source (`scripts/build_redis.sh`); a working C compiler is
+  present. An earlier revision of this ADR assumed compilation was unavailable and
+  planned to rely on the in-memory fallback. That assumption was wrong, and testing it
+  was cheaper than designing around it.
+
+The container runtime gap is real and not closable here.
 
 These are properties of the host, not of the design. The question is how to keep the
 delivery semantics real and verifiable while remaining honest about what was executed.
@@ -31,8 +44,8 @@ Define three ports and supply more than one adapter for each:
 | | `EcrRegistry` | Implemented, **not executed** (no AWS account) |
 | `DeploymentAdapter` | `LocalProcessAdapter` | Verified by execution |
 | | `DockerAdapter` | Implemented, **not executed** (no daemon) |
-| `KeyValueStore` | `RedisKeyValueStore` | Implemented; exercised only under Compose/CI |
-| | `InMemoryKeyValueStore` | Verified by execution (single-process dev fallback) |
+| `KeyValueStore` | `RedisRateLimiter` | Verified by execution (Redis 7.2.5 built from source) |
+| | `InMemoryRateLimiter` | Verified by execution (single-process fallback) |
 
 The controller, state machines, health analyzer, and rollback logic sit entirely above
 these ports and are adapter-agnostic. Swapping `LocalProcessAdapter` for `DockerAdapter`
@@ -72,8 +85,13 @@ Negative, and explicitly accepted:
   attacker who controls repository contents. This is documented in `docs/security.md`
   and the builder refuses to run unless `FORGE_ALLOW_UNSANDBOXED_BUILDS=true` is set
   explicitly, so the weaker mode can never be entered by accident.
-- `BuildKitBuilder`, `DockerAdapter`, `EcrRegistry` and the Terraform stack are unverified.
-  They are labelled as such in the README and must not be described as working.
+- `BuildKitBuilder`, `DockerAdapter`, `EcrRegistry`, the Compose stack and the Terraform
+  stack are unverified. Each carries a status banner in its own file, and the README
+  lists them. They must not be described as working.
+- The fallback adapters are not dead weight kept for appearances: the process adapters
+  are what the demonstration actually runs, and the container adapters exist to show the
+  port is genuine. Swapping `LocalProcessAdapter` for `DockerAdapter` changes no
+  orchestration code — that is the test of whether the boundary is real.
 
 ## Alternatives rejected
 
