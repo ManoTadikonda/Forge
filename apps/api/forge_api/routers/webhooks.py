@@ -25,7 +25,7 @@ from forge_core.security.webhooks import verify_signature
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from forge_api.deps import DbSession, enforce_rate_limit
+from forge_api.deps import DbSession, commit, enforce_rate_limit
 from forge_api.routers.pipelines import create_pipeline_run
 
 logger = get_logger("forge.api.webhooks")
@@ -161,6 +161,9 @@ async def github_webhook(
     record.processed = True
     record.pipeline_run_id = run.id
     record.result = "Pipeline triggered." if created else "Existing run reused."
+    # Commit before acknowledging: GitHub treats a 2xx as "delivered" and will not
+    # retry, so the run and its job must be durable before we say so.
+    await commit(session)
     logger.info(
         "webhook_processed", delivery=delivery_id, github_event=x_github_event,
         repository=repository.slug, pipeline_id=str(run.id), created=created,

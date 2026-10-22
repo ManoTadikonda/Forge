@@ -21,6 +21,7 @@ from forge_api.deps import (
     AppSettings,
     CurrentUserDep,
     DbSession,
+    commit,
     enforce_rate_limit,
 )
 from forge_api.schemas import CurrentUserOut, LoginRequest, TokenResponse
@@ -140,6 +141,9 @@ async def login(
         max_age=settings.access_token_ttl_seconds,
         httponly=False, secure=secure, samesite="lax", path="/",
     )
+    # Commit before returning: the client will immediately authenticate with this
+    # token, and the session row must already be visible to that next request.
+    await commit(session)
     return TokenResponse(
         access_token=token, expires_at=claims.expires_at, csrf_token=csrf_token
     )
@@ -160,6 +164,7 @@ async def logout(
         resource_type="session", resource_id=str(user.session_id),
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)
     response.delete_cookie(SESSION_COOKIE, path="/")
     response.delete_cookie(CSRF_COOKIE, path="/")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

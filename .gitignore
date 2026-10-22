@@ -50,3 +50,6 @@ credentials.json
 *.swp
 .idea/
 .vscode/
+
+# frontend build metadata
+apps/web/tsconfig.*.tsbuildinfo

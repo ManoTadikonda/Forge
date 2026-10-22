@@ -92,6 +92,27 @@ class Forge:
         response.raise_for_status()
         return response.json()
 
+    def get_eventually(self, path: str, *, attempts: int = 5) -> Any:
+        """GET a resource that was just created, tolerating a brief 404.
+
+        A client that creates a resource and immediately polls it can race the
+        write becoming visible. Rather than failing the whole demo on a transient,
+        retry briefly and then surface the error.
+        """
+        last: httpx.HTTPStatusError | None = None
+        for attempt in range(attempts):
+            try:
+                return self.get(path)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 404:
+                    raise
+                last = exc
+                time.sleep(0.2 * (attempt + 1))
+        raise DemoError(
+            f"{path} was still not readable after {attempts} attempts "
+            f"({last.response.status_code if last else 'unknown'})."
+        )
+
     def post(self, path: str, payload: dict[str, Any]) -> Any:
         response = self.client.post(path, headers=self.headers, json=payload)
         if response.status_code >= 400:
@@ -113,7 +134,7 @@ class Forge:
         run = self.post("/api/v1/pipelines", {"repository_id": repository_id})
         deadline = time.time() + timeout
         while time.time() < deadline:
-            detail = self.get(f"/api/v1/pipelines/{run['id']}")
+            detail = self.get_eventually(f"/api/v1/pipelines/{run['id']}")
             if detail["state"] in ("SUCCEEDED", "FAILED", "CANCELED"):
                 return detail
             time.sleep(1)
@@ -127,7 +148,7 @@ class Forge:
         }
         seen = -1
         while time.time() < deadline:
-            detail = self.get(f"/api/v1/deployments/{created['id']}")
+            detail = self.get_eventually(f"/api/v1/deployments/{created['id']}")
             for event in detail["events"]:
                 if event["sequence"] > seen:
                     seen = event["sequence"]
@@ -192,6 +213,10 @@ def healthy_release(forge: Forge) -> dict[str, Any]:
     step("Scenario 1 — healthy release of v1.0.0")
     repository = forge.repository()
     info(f"repository: {repository['name']} ({repository['url']})")
+
+    # Pin the starting version explicitly rather than inheriting whatever a previous
+    # run left behind. Without this the demo is only reproducible from a fresh seed.
+    set_demo_version("1.0.0")
 
     step("Building v1.0.0")
     run = forge.run_pipeline(repository["id"])

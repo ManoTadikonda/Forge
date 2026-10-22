@@ -512,12 +512,15 @@ class DeploymentController:
                 },
             )
 
-            if decision.action is CanaryAction.ABORT:
-                raise RolloutAborted(decision.reason, candidate_assessment)
-
+            # Persist the measurements *before* acting on them. The evidence that
+            # justified a rollback is exactly what an operator needs afterwards, so
+            # it must survive the abort path too.
             await self._store_health_summary(
                 deployment_id, candidate_assessment, stable_assessment, weight
             )
+
+            if decision.action is CanaryAction.ABORT:
+                raise RolloutAborted(decision.reason, candidate_assessment)
 
     async def _rebaseline(self, release: _ReleaseContext) -> None:
         probe = await self._adapter.probe(release.handle)

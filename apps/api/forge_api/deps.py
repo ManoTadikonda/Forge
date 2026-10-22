@@ -50,7 +50,14 @@ class CurrentUser:
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:
-    """One session per request, committed by the route on success."""
+    """One session per request.
+
+    The commit here is a safety net, not the contract. Because the app installs
+    BaseHTTPMiddleware, the response is streamed and this teardown can run *after*
+    the client has already received the response — so a client that writes and then
+    immediately reads could miss its own write. Every mutating route therefore
+    commits explicitly before returning (see ``commit``).
+    """
     maker = get_sessionmaker()
     async with maker() as session:
         try:
@@ -163,6 +170,15 @@ async def enforce_rate_limit(
         )
 
 
+async def commit(session: AsyncSession) -> None:
+    """Flush and commit before a route returns.
+
+    Mutating handlers must call this rather than relying on dependency teardown,
+    so the write is durable before the client can act on the response.
+    """
+    await session.commit()
+
+
 __all__ = [
     "CSRF_COOKIE",
     "CSRF_HEADER",
@@ -171,6 +187,7 @@ __all__ = [
     "CurrentUser",
     "CurrentUserDep",
     "DbSession",
+    "commit",
     "current_user",
     "enforce_rate_limit",
     "get_db",

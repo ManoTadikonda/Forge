@@ -23,7 +23,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from forge_api.deps import CurrentUserDep, DbSession, enforce_rate_limit, require
+from forge_api.deps import (
+    CurrentUserDep,
+    DbSession,
+    commit,
+    enforce_rate_limit,
+    require,
+)
 from forge_api.schemas import (
     DeploymentCreate,
     DeploymentDetail,
@@ -159,6 +165,9 @@ async def create_deployment(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    # The worker claims this deployment from the queue and the caller polls it;
+    # both need the row to be durable before the response is returned.
+    await commit(session)
     return DeploymentOut.model_validate(deployment)
 
 
@@ -347,6 +356,7 @@ async def cancel_deployment(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)
     return DeploymentOut.model_validate(deployment)
 
 
@@ -448,4 +458,5 @@ async def rollback_deployment(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)
     return DeploymentOut.model_validate(deployment)

@@ -14,7 +14,13 @@ from forge_core.errors import ConflictError, NotFoundError
 from forge_core.urlguard import validate_repo_url
 from sqlalchemy import func, or_, select, update
 
-from forge_api.deps import CurrentUserDep, DbSession, enforce_rate_limit, require
+from forge_api.deps import (
+    CurrentUserDep,
+    DbSession,
+    commit,
+    enforce_rate_limit,
+    require,
+)
 from forge_api.schemas import (
     Page,
     PipelineOut,
@@ -83,6 +89,7 @@ async def create_repository(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)
     return RepositoryOut.model_validate(repository)
 
 
@@ -194,3 +201,4 @@ async def delete_repository(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)

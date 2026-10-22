@@ -26,7 +26,10 @@ os.environ.setdefault("FORGE_ENVIRONMENT", "test")
 os.environ.setdefault("FORGE_SECRET_KEY", "test-secret-key-at-least-32-characters-long!!")
 os.environ.setdefault("FORGE_ALLOW_UNSANDBOXED_BUILDS", "true")
 os.environ.setdefault("FORGE_RATE_LIMIT_ENABLED", "false")
-os.environ.setdefault("FORGE_PG_DATA_DIR", str(ROOT / ".forge" / "pgdata-test"))
+# Force, never setdefault: scripts/env.sh exports FORGE_PG_DATA_DIR for the
+# development stack, and the integration fixtures TRUNCATE every table. Inheriting
+# that value would let `pytest` wipe the developer's local database.
+os.environ["FORGE_PG_DATA_DIR"] = str(ROOT / ".forge" / "pgdata-test")
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -52,6 +55,26 @@ def database_url() -> str:
         pytest.skip(
             f"No PostgreSQL available for integration tests ({exc}). Set "
             f"FORGE_TEST_DATABASE_URL to run them."
+        )
+
+
+DEV_DATA_DIR = str(ROOT / ".forge" / "pgdata")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _never_target_the_dev_database(database_url: str) -> None:
+    """Refuse to run destructive fixtures against the development database.
+
+    The integration fixtures TRUNCATE every table. A misconfigured
+    FORGE_TEST_DATABASE_URL pointing at the local stack would silently destroy a
+    developer's data, so this fails loudly instead.
+    """
+    if DEV_DATA_DIR in database_url:
+        pytest.exit(
+            "Refusing to run: the test database resolves to the development data "
+            f"directory ({DEV_DATA_DIR}). The integration fixtures truncate every "
+            "table. Unset FORGE_TEST_DATABASE_URL or point it elsewhere.",
+            returncode=2,
         )
 
 

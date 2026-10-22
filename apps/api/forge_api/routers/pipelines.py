@@ -18,7 +18,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from forge_api.deps import CurrentUserDep, DbSession, enforce_rate_limit, require
+from forge_api.deps import (
+    CurrentUserDep,
+    DbSession,
+    commit,
+    enforce_rate_limit,
+    require,
+)
 from forge_api.schemas import (
     ArtifactOut,
     LogLine,
@@ -156,6 +162,8 @@ async def trigger_pipeline(
             ip_address=request.client.host if request.client else "",
             request_id=getattr(request.state, "request_id", ""),
         )
+    # The caller polls this run immediately; it must be durable first.
+    await commit(session)
     return PipelineOut.model_validate(run)
 
 
@@ -283,4 +291,5 @@ async def cancel_pipeline(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)
     return PipelineOut.model_validate(run)

@@ -14,7 +14,7 @@ from forge_core.errors import ConflictError, NotFoundError, ValidationError
 from forge_core.security.passwords import PasswordPolicyError, hash_password
 from sqlalchemy import select
 
-from forge_api.deps import CurrentUserDep, DbSession, require
+from forge_api.deps import CurrentUserDep, DbSession, commit, require
 from forge_api.schemas import CreateUserRequest, SettingsOut, UserOut
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -101,6 +101,7 @@ async def create_user(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)
     return UserOut.model_validate(created)
 
 
@@ -127,4 +128,5 @@ async def deactivate_user(
         ip_address=request.client.host if request.client else "",
         request_id=getattr(request.state, "request_id", ""),
     )
+    await commit(session)
     return UserOut.model_validate(target)

@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
+  body {
+    @apply bg-surface text-ink font-sans antialiased;
+    font-feature-settings: 'cv05', 'ss01';
+  }
+
+  /* A visible focus ring is a baseline accessibility requirement, not decoration. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-surface;
+  }
+
+  ::selection {
+    @apply bg-accent/30;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg border border-surface-border bg-surface-raised;
+  }
+
+  .card-pad {
+    @apply p-4 sm:p-5;
+  }
+
+  .label {
+    @apply text-2xs font-medium uppercase tracking-wider text-ink-faint;
+  }
+
+  .mono {
+    @apply font-mono text-xs;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2
+           text-sm font-medium transition-colors
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent/90;
+  }
+
+  .btn-ghost {
+    @apply btn border border-surface-border text-ink-muted
+           hover:bg-surface-overlay hover:text-ink;
+  }
+
+  .btn-danger {
+    @apply btn border border-danger/40 text-danger hover:bg-danger/10;
+  }
+
+  .input {
+    @apply w-full rounded-md border border-surface-border bg-surface px-3 py-2
+           text-sm text-ink placeholder:text-ink-faint
+           focus:border-accent focus:outline-none;
+  }
+
+  .th {
+    @apply px-4 py-2.5 text-left text-2xs font-semibold uppercase
+           tracking-wider text-ink-faint;
+  }
+
+  .td {
+    @apply px-4 py-3 text-sm text-ink-muted;
+  }
+
+  .row-link {
+    @apply cursor-pointer transition-colors hover:bg-surface-overlay/60;
+  }
+}
+
+/* Tabular figures keep columns of numbers from jittering as they poll. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

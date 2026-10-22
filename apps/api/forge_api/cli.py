@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import getpass
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -91,34 +92,36 @@ def build_demo_repository(root: Path, source: Path, *, version: str = "1.0.0") -
     return work
 
 
+#: Matches a version assignment regardless of its current value, so setting the
+#: demo version is idempotent and reversible. A literal replace of "1.0.0" would
+#: only ever work in one direction.
+_VERSION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r'(__version__\s*=\s*")[^"]*(")'), r"\g<1>{version}\g<2>"),
+    (re.compile(r'(version:\s*str\s*=\s*")[^"]*(")'), r"\g<1>{version}\g<2>"),
+    (
+        re.compile(r'(os\.environ\.get\("SAMPLE_VERSION",\s*")[^"]*(")'),
+        r"\g<1>{version}\g<2>",
+    ),
+    (re.compile(r'(?m)^(version\s*=\s*")[^"]*(")'), r"\g<1>{version}\g<2>"),
+)
+
+
 def _set_version(work: Path, version: str) -> None:
-    init = work / "sample_service" / "__init__.py"
-    if init.is_file():
-        init.write_text(
-            init.read_text(encoding="utf-8").replace(
-                '__version__ = "1.0.0"', f'__version__ = "{version}"'
-            ),
-            encoding="utf-8",
-        )
-    config = work / "sample_service" / "config.py"
-    if config.is_file():
-        config.write_text(
-            config.read_text(encoding="utf-8").replace(
-                'version: str = "1.0.0"', f'version: str = "{version}"'
-            ).replace(
-                'os.environ.get("SAMPLE_VERSION", "1.0.0")',
-                f'os.environ.get("SAMPLE_VERSION", "{version}")',
-            ),
-            encoding="utf-8",
-        )
-    pyproject = work / "pyproject.toml"
-    if pyproject.is_file():
-        pyproject.write_text(
-            pyproject.read_text(encoding="utf-8").replace(
-                'version = "1.0.0"', f'version = "{version}"'
-            ),
-            encoding="utf-8",
-        )
+    """Rewrite the demo service's declared version in place."""
+    targets = (
+        work / "sample_service" / "__init__.py",
+        work / "sample_service" / "config.py",
+        work / "pyproject.toml",
+    )
+    for path in targets:
+        if not path.is_file():
+            continue
+        original = path.read_text(encoding="utf-8")
+        updated = original
+        for pattern, replacement in _VERSION_PATTERNS:
+            updated = pattern.sub(replacement.format(version=version), updated)
+        if updated != original:
+            path.write_text(updated, encoding="utf-8")
 
 
 async def _connect() -> None:
@@ -200,21 +203,34 @@ async def cmd_set_demo_version(args: argparse.Namespace) -> int:
     settings = get_settings()
     work = Path(settings.workspace_root).parent / "demo" / "demo-src"
 
-    def _commit() -> None:
+    def _commit() -> bool:
+        """Returns True when a new commit was made, False when nothing changed."""
         if not (work / ".git").is_dir():
             raise FileNotFoundError(
                 "demo repository not found; run 'seed-demo' first"
             )
         _set_version(work, args.version)
         _git("add", "-A", cwd=work)
-        _git("commit", "-q", "-m", f"Sample service {args.version}", cwd=work)
+        try:
+            _git("commit", "-q", "-m", f"Sample service {args.version}", cwd=work)
+        except subprocess.CalledProcessError as exc:
+            # "nothing to commit" is the expected outcome when the demo is already
+            # at this version; re-running the demo must stay idempotent.
+            stderr = (exc.stderr or b"").decode("utf-8", "replace")
+            if "nothing to commit" in stderr or exc.returncode == 1:
+                return False
+            raise
+        return True
 
     try:
-        await asyncio.to_thread(_commit)
+        committed = await asyncio.to_thread(_commit)
     except (FileNotFoundError, subprocess.CalledProcessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    print(json.dumps({"status": "committed", "version": args.version}, indent=2))
+    print(json.dumps({
+        "status": "committed" if committed else "unchanged",
+        "version": args.version,
+    }, indent=2))
     await dispose_engine()
     return 0
 
