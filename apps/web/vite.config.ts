@@ -14,10 +14,11 @@ export default defineConfig({
     port: 5173,
     // The API is same-origin through this proxy in development, so the session
     // cookie is first-party and CORS is not involved.
+    // Only /api is proxied. Proxying /health or /metrics would shadow the
+    // dashboard's own routes of the same name on a direct load or refresh —
+    // the SPA reads everything it needs through /api/v1.
     proxy: {
       '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-      '/health': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-      '/metrics': { target: 'http://127.0.0.1:8000', changeOrigin: true },
     },
   },
   build: {

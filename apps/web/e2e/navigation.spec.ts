@@ -29,6 +29,26 @@ test.describe('navigation', () => {
     })
   }
 
+  const DEEP_LINKS = [
+    { path: '/metrics', heading: 'Metrics' },
+    { path: '/security', heading: 'Security & supply chain' },
+    { path: '/audit', heading: 'Audit log' },
+    { path: '/settings', heading: 'Settings' },
+    { path: '/environments', heading: 'Environments & services' },
+  ]
+
+  for (const { path, heading } of DEEP_LINKS) {
+    test(`${path} works as a direct load, not just a client-side route`, async ({
+      page,
+    }) => {
+      // Loading the URL directly also exercises the dev proxy and the SPA
+      // fallback. A path proxied to the API would shadow the app route here
+      // while still passing a click-through test.
+      await page.goto(path)
+      await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+    })
+  }
+
   test('an unknown route renders the not-found page', async ({ page }) => {
     await page.goto('/this-route-does-not-exist')
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()

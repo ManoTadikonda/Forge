@@ -54,7 +54,8 @@ export function MetricsPage() {
     <div>
       <PageHeader
         title="Metrics"
-        description="Measured from recorded executions. Prometheus metrics are exposed at /metrics."
+        description="Measured from recorded executions. The API exposes the full Prometheus
+                     exposition separately, on its own /metrics endpoint."
       />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -185,10 +186,10 @@ export function MetricsPage() {
       </section>
 
       <p className="mt-4 text-2xs text-ink-faint">
-        {deployments?.total ?? 0} deployments recorded. Scrape{' '}
-        <code className="mono">/metrics</code> for the full Prometheus exposition,
-        including queue depth, job durations, HTTP latency histograms and rollback
-        counters.
+        {deployments?.total ?? 0} deployments recorded. Scrape the API's{' '}
+        <code className="mono">/metrics</code> endpoint for the full Prometheus
+        exposition, including queue depth, job durations, HTTP latency histograms
+        and rollback counters.
       </p>
     </div>
   )
