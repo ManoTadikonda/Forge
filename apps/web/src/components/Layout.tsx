@@ -1,6 +1,6 @@
 /** Application shell: sidebar navigation, header and content region. */
 
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useOverview } from '@/hooks/queries'
@@ -52,7 +52,6 @@ function Badge({ count }: { count: number }) {
 
 export function Layout() {
   const { user, logout, can } = useAuth()
-  const navigate = useNavigate()
   const { data: overview } = useOverview()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -63,9 +62,8 @@ export function Layout() {
   }
 
   function handleLogout(): void {
-    // Navigate regardless of the outcome: logout() already clears the cached
-    // session locally, so staying on an authenticated view would be misleading.
-    void logout().finally(() => void navigate('/login', { replace: true }))
+    // logout() performs a full navigation to /login itself.
+    void logout()
   }
 
   return (

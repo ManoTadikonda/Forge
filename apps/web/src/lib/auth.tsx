@@ -41,10 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.logout()
     } finally {
-      // Clear cached data either way: a failed logout must not leave another
-      // user's data visible in the cache.
+      // Discard every cached response, then reload the application from scratch.
+      //
+      // A full navigation rather than a client-side route change is deliberate: it
+      // guarantees no component is still holding a rendered copy of the previous
+      // user's data. Reconciling an emptied cache in place is fiddly and easy to
+      // get subtly wrong, and this is the one transition where being thorough
+      // matters more than being fast.
       client.clear()
-      await client.invalidateQueries()
+      window.location.assign('/login')
     }
   }, [client])
 
