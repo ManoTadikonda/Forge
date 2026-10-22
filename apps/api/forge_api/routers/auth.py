@@ -62,6 +62,9 @@ async def login(
             ip_address=client_ip, user_agent=user_agent,
             request_id=getattr(request.state, "request_id", ""),
         )
+        # Commit before raising: the request-scoped session rolls back on an
+        # exception, which would otherwise discard this audit record.
+        await session.commit()
         raise AuthenticationError(
             "This account is temporarily locked after repeated failed sign-ins."
         )
@@ -84,6 +87,11 @@ async def login(
             ip_address=client_ip, user_agent=user_agent,
             request_id=getattr(request.state, "request_id", ""),
         )
+        # Commit the failure bookkeeping before raising. The request-scoped session
+        # rolls back on an exception, which would otherwise discard both the
+        # incremented attempt counter (making lockout inoperative) and this audit
+        # record — exactly the evidence an operator needs after a brute-force attempt.
+        await session.commit()
         # One message for every failure mode: no account enumeration.
         raise AuthenticationError("Incorrect email address or password.")
 

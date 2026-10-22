@@ -198,7 +198,7 @@ def healthy_release(forge: Forge) -> dict[str, Any]:
     if run["state"] != "SUCCEEDED":
         raise DemoError(f"Pipeline failed: {run['failure_reason'][:300]}")
     for stage in run["stages"]:
-        marker = {"SUCCEEDED": "✓", "SKIPPED": "–", "FAILED": "✗"}.get(stage["status"], "·")
+        marker = {"SUCCEEDED": "✓", "SKIPPED": "-", "FAILED": "✗"}.get(stage["status"], "·")
         detail = stage["message"] or stage["skip_reason"]
         print(f"    {marker} {stage['name']:9} {detail[:72]}")
     artifact = run["artifacts"][0]

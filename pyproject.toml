@@ -71,3 +71,6 @@ markers = [
     "slow: long-running end-to-end orchestration tests",
 ]
 filterwarnings = ["error::DeprecationWarning:forge_core.*"]
+# Forge emits structured logs on every request; showing them per test buries failures.
+log_cli = false
+addopts = "-p no:cacheprovider --strict-markers"

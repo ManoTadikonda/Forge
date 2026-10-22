@@ -12,7 +12,7 @@ def main() -> int:
     for module in MODULES:
         try:
             resolved = importlib.import_module(module)
-        except Exception as exc:  # noqa: BLE001 - report every failure, mask none
+        except Exception as exc:
             print(f"    FAIL {module}: {type(exc).__name__}: {exc}")
             failed = True
         else:
